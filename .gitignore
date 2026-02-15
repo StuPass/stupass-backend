@@ -25,3 +25,5 @@ target
 
 /target
 *.db
+# SQLite database browser project file
+*.sqbpro
