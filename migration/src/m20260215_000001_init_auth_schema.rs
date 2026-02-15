@@ -29,9 +29,9 @@ impl MigrationTrait for Migration {
                     .col(string(User::Email).not_null().unique_key())
                     .col(string(User::Phone).not_null().unique_key())
                     .col(string(User::FullName).not_null())
-                    .col(string(User::AvatarUrl).null())
-                    .col(string(User::Bio).null())
-                    .col(date(User::DateOfBirth).null())
+                    .col(string_null(User::AvatarUrl))
+                    .col(string_null(User::Bio))
+                    .col(date_null(User::DateOfBirth))
                     .col(string(User::SchoolId).not_null())
                     .col(string(User::StudentId).not_null())
                     .col(integer(User::ReputationScore).default(0))
@@ -40,8 +40,8 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default("unverified"),
                     )
-                    .col(timestamp(User::VerifiedAt).null())
-                    .col(timestamp(User::StudentStatusExpiresAt).null())
+                    .col(timestamp_null(User::VerifiedAt))
+                    .col(timestamp_null(User::StudentStatusExpiresAt))
                     .col(
                         timestamp(CreatedAt)
                             .not_null()
@@ -52,7 +52,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
-                    .col(timestamp(DeletedAt).null())
+                    .col(timestamp_null(DeletedAt))
                     .index(
                         Index::create()
                             .name("idx-unique-school-student")
@@ -120,8 +120,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(Session::Id).primary_key()) // Integer PK (Ephemeral)
                     .col(string(Session::SessionTokenHash).not_null())
-                    .col(string(Session::IpAddress).null())
-                    .col(string(Session::UserAgent).null())
+                    .col(string_null(Session::IpAddress))
+                    .col(string_null(Session::UserAgent))
                     .col(
                         timestamp(Session::ValidFrom)
                             .not_null()
@@ -166,7 +166,7 @@ impl MigrationTrait for Migration {
                             .default(Expr::current_timestamp()),
                     )
                     .col(timestamp(PasswordResetToken::ExpiresAt).not_null())
-                    .col(timestamp(PasswordResetToken::UsedAt).null())
+                    .col(timestamp_null(PasswordResetToken::UsedAt))
                     .col(uuid(PasswordResetToken::UserId).not_null()) // UUID FK -> User
                     .foreign_key(
                         ForeignKey::create()
