@@ -9,8 +9,8 @@ pub struct Model {
     pub id: i32,
     #[sea_orm(unique)]
     pub session_token_hash: String,
-    pub ip_address: String,
-    pub user_agent: String,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
     pub valid_from: DateTimeUtc,
     pub expires_at: DateTimeUtc,
     pub last_refresh: DateTimeUtc,

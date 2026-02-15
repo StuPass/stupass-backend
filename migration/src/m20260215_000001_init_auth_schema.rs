@@ -12,7 +12,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(AuthProvider::Table)
                     .if_not_exists()
-                    .col(pk_auto(AuthProvider::Id).primary_key()) // Integer PK
+                    .col(pk_auto(AuthProvider::Id).primary_key())
                     .col(string(AuthProvider::Name).not_null().unique_key())
                     .to_owned(),
             )
@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(User::Table)
                     .if_not_exists()
-                    .col(uuid(User::Id).primary_key()) // UUID PK
+                    .col(uuid(User::Id).primary_key())
                     .col(string(User::Username).not_null().unique_key())
                     .col(string(User::Email).not_null().unique_key())
                     .col(string(User::Phone).not_null().unique_key())
@@ -70,11 +70,11 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Credential::Table)
                     .if_not_exists()
-                    .col(uuid(Credential::Id).primary_key()) // UUID PK
+                    .col(uuid(Credential::Id).primary_key())
                     .col(string(Credential::Identifier).not_null())
                     .col(string(Credential::Secret).not_null())
-                    .col(integer(Credential::ProviderId).not_null()) // Integer FK -> AuthProvider
-                    .col(uuid(Credential::UserId).not_null()) // UUID FK -> User
+                    .col(integer(Credential::ProviderId).not_null())
+                    .col(uuid(Credential::UserId).not_null())
                     .col(
                         timestamp(CreatedAt)
                             .not_null()
@@ -118,7 +118,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Session::Table)
                     .if_not_exists()
-                    .col(pk_auto(Session::Id).primary_key()) // Integer PK (Ephemeral)
+                    .col(pk_auto(Session::Id).primary_key())
                     .col(string(Session::SessionTokenHash).not_null())
                     .col(string_null(Session::IpAddress))
                     .col(string_null(Session::UserAgent))
@@ -133,7 +133,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(Expr::current_timestamp()),
                     )
-                    .col(uuid(Session::UserId).not_null()) // UUID FK -> User
+                    .col(uuid(Session::UserId).not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-session-user")
@@ -158,7 +158,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(PasswordResetToken::Table)
                     .if_not_exists()
-                    .col(pk_auto(PasswordResetToken::Id).primary_key()) // Integer PK (Ephemeral)
+                    .col(pk_auto(PasswordResetToken::Id).primary_key())
                     .col(string(PasswordResetToken::ResetTokenHash).not_null())
                     .col(
                         timestamp(CreatedAt)
@@ -167,7 +167,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(timestamp(PasswordResetToken::ExpiresAt).not_null())
                     .col(timestamp_null(PasswordResetToken::UsedAt))
-                    .col(uuid(PasswordResetToken::UserId).not_null()) // UUID FK -> User
+                    .col(uuid(PasswordResetToken::UserId).not_null())
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-password-reset-token-user")

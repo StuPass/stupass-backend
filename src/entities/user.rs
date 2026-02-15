@@ -14,18 +14,18 @@ pub struct Model {
     #[sea_orm(unique)]
     pub phone: String,
     pub full_name: String,
-    pub avatar_url: String,
-    pub bio: String,
-    pub date_of_birth: Date,
+    pub avatar_url: Option<String>,
+    pub bio: Option<String>,
+    pub date_of_birth: Option<Date>,
     pub school_id: String,
     pub student_id: String,
     pub reputation_score: i32,
     pub verification_status: String,
-    pub verified_at: DateTimeUtc,
-    pub student_status_expires_at: DateTimeUtc,
+    pub verified_at: Option<DateTimeUtc>,
+    pub student_status_expires_at: Option<DateTimeUtc>,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
-    pub deleted_at: DateTimeUtc,
+    pub deleted_at: Option<DateTimeUtc>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

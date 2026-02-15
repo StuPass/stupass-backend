@@ -11,7 +11,7 @@ pub struct Model {
     pub reset_token_hash: String,
     pub created_at: DateTimeUtc,
     pub expires_at: DateTimeUtc,
-    pub used_at: DateTimeUtc,
+    pub used_at: Option<DateTimeUtc>,
     pub user_id: Uuid,
 }
 
