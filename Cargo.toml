@@ -3,12 +3,15 @@ name = "stupass-backend"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = [".", "migration"]
+
 [dependencies]
 anyhow = "1.0.101"
 axum = "0.8.8"
 console-subscriber = "0.5.0"
 dotenvy = "0.15.7"
-sea-orm = { version = "1.1.19", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
+sea-orm = { version = "1.1.19", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros", "runtime-tokio-native-tls"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tokio = { version = "1.49.0", features = ["full"] }
