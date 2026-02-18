@@ -68,8 +68,8 @@ async fn main() {
         .await
         .expect("Failed to bind to address");
 
-    println!("Server listening on http://0.0.0.0:3000");
-    println!("API docs available at http://0.0.0.0:3000/");
+    println!("Server listening on http://127.0.0.1:3000 (http://0.0.0.0:3000)");
+    println!("API docs available at http://127.0.0.1:3000/");
 
     axum::serve(listener, app).await.expect("Server error");
 }
