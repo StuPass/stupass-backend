@@ -5,10 +5,8 @@ use axum::{
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-mod handlers;
-
-use handlers::auth;
-use handlers::general;
+use stupass_backend::handlers::auth;
+use stupass_backend::handlers::general;
 
 #[derive(OpenApi)]
 #[openapi(
