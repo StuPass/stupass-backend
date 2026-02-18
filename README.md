@@ -108,7 +108,6 @@ stupass-backend/
 │       └── general.rs    # Health check & other general purpose endpoints
 ├── migration/            # Database migrations (SeaORM)
 ├── Cargo.toml
-└── CLAUDE.md             # Project design documentation
 ```
 
 ## Database Migrations
@@ -130,5 +129,5 @@ This project is an extracurricular initiative developed in January 2025.
 
 ## References
 
-- [StuPass Initial Design Document](StuPass_Initial_Design.pdf)
+- [StuPass Initial Design Document](https://github.com/StuPass/StuPass-Docs/blob/main/StuPass_Initial_Design.pdf)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
