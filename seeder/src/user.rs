@@ -2,12 +2,13 @@ use anyhow::Result;
 use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 use fake::{
     Fake,
-    faker::{company::en::CompanyName, lorem::en::Sentence, name::en::Name},
+    faker::{
+        company::en::CompanyName, lorem::en::Sentence, name::en::Name,
+        phone_number::en::PhoneNumber,
+    },
+    rand::SeedableRng,
+    rand::seq::IndexedRandom,
 };
-use rand::RngExt;
-use rand::SeedableRng;
-use rand::rngs::StdRng;
-use rand::seq::IndexedRandom;
 use sea_orm::{ActiveModelTrait, Database, DatabaseConnection, EntityTrait, Set};
 use std::collections::HashMap;
 use stupass_backend::entities::user;
@@ -42,15 +43,16 @@ pub struct UserSeedConfig {
 
 /// Seed the database with fake user data.
 ///
-/// # Arguments
+/// ## Arguments
 /// * `config` - Configuration specifying user count, database URL, university count, and seed
 ///
-/// # Returns
+/// ## Returns
 /// The university registry mapping university names to student counts
 pub async fn seed_users(config: UserSeedConfig) -> Result<UniversityRegistry> {
-    let mut rng = StdRng::seed_from_u64(config.seed);
+    let mut rng = fake::rand::rngs::StdRng::seed_from_u64(config.seed);
 
-    // Calculate number of universities: clamp to [1, num_users / 10] if specified; otherwise 10% of users
+    // Calculate number of universities:
+    // clamp to [1, num_users / 10]
     let num_universities = match config.num_uni {
         Some(n) => n.clamp(1, config.num_users / 10),
         None => (config.num_users / 10).max(1),
@@ -89,17 +91,7 @@ pub async fn seed_users(config: UserSeedConfig) -> Result<UniversityRegistry> {
     println!("Inserting {} users...", complete_users.len());
 
     for user_model in complete_users {
-        match user_model.insert(&db).await {
-            Ok(inserted) => {
-                println!(
-                    "  {} | {} | {} | {}",
-                    inserted.student_id, inserted.full_name, inserted.school_id, inserted.email
-                );
-            }
-            Err(e) => {
-                eprintln!("Failed to insert user: {}", e);
-            }
-        }
+        user_model.insert(&db).await?;
     }
 
     let count = user::Entity::find().all(&db).await?.len();
@@ -119,7 +111,10 @@ pub async fn seed_users(config: UserSeedConfig) -> Result<UniversityRegistry> {
     Ok(university_registry)
 }
 
-fn generate_universities(num: usize, rng: &mut StdRng) -> UniversityRegistry {
+fn generate_universities<R: fake::rand::Rng + Sized>(
+    num: usize,
+    rng: &mut R,
+) -> UniversityRegistry {
     let suffixes = [
         "University",
         "Institute of Technology",
@@ -129,7 +124,7 @@ fn generate_universities(num: usize, rng: &mut StdRng) -> UniversityRegistry {
     let mut universities = HashMap::new();
 
     for _ in 0..num {
-        let company: String = CompanyName().fake();
+        let company: String = CompanyName().fake_with_rng(rng);
         let suffix = suffixes.choose(rng).unwrap();
         let name = format!("{} {}", company, suffix);
         universities.insert(name, 0);
@@ -138,19 +133,19 @@ fn generate_universities(num: usize, rng: &mut StdRng) -> UniversityRegistry {
     universities
 }
 
-fn generate_partial_user(
+fn generate_partial_user<R: fake::rand::Rng + Sized>(
     index: usize,
     university_names: &[String],
-    rng: &mut StdRng,
+    rng: &mut R,
 ) -> PartialUser {
-    let full_name: String = Name().fake();
+    let full_name: String = Name().fake_with_rng(rng);
 
     let name_parts: Vec<&str> = full_name.split_whitespace().collect();
     let first_name = name_parts.first().unwrap_or(&"Unknown");
     let last_name = name_parts.last().unwrap_or(&"User");
 
     let username = format!(
-        "{}{}{}",
+        "{}_{}{}",
         first_name.to_lowercase(),
         last_name.to_lowercase(),
         index
@@ -160,13 +155,6 @@ fn generate_partial_user(
         "{}.{}@student.edu",
         first_name.to_lowercase(),
         last_name.to_lowercase()
-    );
-
-    let phone = format!(
-        "+1-{:03}-{:03}-{:04}",
-        rng.random_range(200..999),
-        rng.random_range(100..999),
-        rng.random_range(1000..9999)
     );
 
     let date_of_birth = NaiveDate::from_ymd_opt(
@@ -182,22 +170,23 @@ fn generate_partial_user(
         id: Uuid::new_v4(),
         username,
         email,
-        phone,
+        phone: PhoneNumber().fake_with_rng(rng),
         full_name,
-        bio: Some(Sentence(3..10).fake()),
+        bio: Some(Sentence(3..10).fake_with_rng(rng)),
         date_of_birth,
         school_name,
         reputation_score: rng.random_range(0..100),
     }
 }
 
-fn finalize_user(
+fn finalize_user<R: fake::rand::Rng + Sized>(
     partial: PartialUser,
     registry: &mut UniversityRegistry,
-    rng: &mut StdRng,
+    rng: &mut R,
 ) -> user::ActiveModel {
     let now = Utc::now();
 
+    // Assume students are admitted at age 18
     let admission_year = partial.date_of_birth.year() + 18;
 
     let student_index = registry.entry(partial.school_name.clone()).or_insert(0);
@@ -218,7 +207,10 @@ fn finalize_user(
         None
     };
 
-    let expires_year = admission_year + rng.random_range(4..9);
+    // Student must graduate within 4-8 years after admission
+    // After that is considered expired (expelled)
+    let expires_year = admission_year + rng.random_range(4..=8);
+    // Assume last valid date is June 30 of the graduation year
     let student_status_expires_at = Utc.with_ymd_and_hms(expires_year, 6, 30, 0, 0, 0).single();
 
     user::ActiveModel {
