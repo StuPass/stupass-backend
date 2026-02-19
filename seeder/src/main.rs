@@ -3,9 +3,10 @@ use clap::Parser;
 use dialoguer::Input;
 use sea_orm::Database;
 use seeder::{
-    CredentialSeedConfig, UserSeedConfig, seed_auth_provider, seed_credentials, seed_users,
+    seed_auth_provider, seed_credentials, seed_users, CredentialSeedConfig, UserSeedConfig,
 };
 use serde_json::to_string_pretty;
+use std::path::PathBuf;
 
 /// StuPass database seeder CLI
 #[derive(Parser, Debug)]
@@ -30,6 +31,10 @@ struct Args {
     /// Force interactive mode - prompt for all parameters including optional ones
     #[arg(short, long)]
     interactive: bool,
+
+    /// Output credentials to file in JSON format (default: print to STDOUT)
+    #[arg(short, long)]
+    credential_output: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -75,8 +80,14 @@ async fn main() -> Result<()> {
     .await?;
 
     if !credentials.is_empty() {
-        println!("\n--- Credentials (plaintext) ---");
-        println!("{}", to_string_pretty(&credentials)?);
+        let json = to_string_pretty(&credentials)?;
+        if let Some(path) = &args.credential_output {
+            std::fs::write(path, json)?;
+            println!("Credentials written to: {}", path.display());
+        } else {
+            println!("\n--- Credentials (plaintext) ---");
+            println!("{}", json);
+        }
     }
 
     Ok(())
