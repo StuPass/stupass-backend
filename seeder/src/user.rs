@@ -9,7 +9,7 @@ use fake::{
     rand::SeedableRng,
     rand::seq::IndexedRandom,
 };
-use sea_orm::{ActiveModelTrait, Database, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
+use sea_orm::{Database, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 use std::collections::HashMap;
 use stupass_backend::entities::user;
 use uuid::Uuid;
@@ -152,9 +152,10 @@ fn generate_partial_user<R: fake::rand::Rng + Sized>(
     );
 
     let email = format!(
-        "{}.{}@student.edu",
+        "{}.{}{}@student.edu",
         first_name.to_lowercase(),
-        last_name.to_lowercase()
+        last_name.to_lowercase(),
+        index
     );
 
     let date_of_birth = NaiveDate::from_ymd_opt(

@@ -4,8 +4,7 @@ use chrono::Utc;
 use fake::{Fake, faker::internet::en::Password, rand::SeedableRng, rand::rngs::StdRng};
 use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,
-    QueryTrait, Set,
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, QueryTrait, Set,
 };
 use serde::Serialize;
 use stupass_backend::entities::{credential, user};
