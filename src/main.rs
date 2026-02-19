@@ -92,7 +92,6 @@ async fn main() {
     println!("API docs available at http://127.0.0.1:3000/");
 
     axum::serve(listener, app).await.expect("Server error");
->>>>>>> main
 }
 
 // Function to initialize tracing
