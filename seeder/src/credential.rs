@@ -52,13 +52,14 @@ pub async fn seed_credentials(
         return Ok(records);
     }
 
+    let mut models_to_insert: Vec<credential::ActiveModel> = Vec::with_capacity(users.len());
     for u in users {
         let password: String = Password(12..16).fake_with_rng(&mut rng);
 
         let hashed = hash(&password, DEFAULT_COST)?;
         let now = Utc::now();
 
-        credential::ActiveModel {
+        models_to_insert.push(credential::ActiveModel {
             id: Set(Uuid::new_v4()),
             identifier: Set(u.username.clone()),
             secret: Set(hashed),
@@ -66,9 +67,7 @@ pub async fn seed_credentials(
             user_id: Set(u.id),
             created_at: Set(now),
             updated_at: Set(now),
-        }
-        .insert(db)
-        .await?;
+        });
 
         records.push(CredentialRecord {
             provider_id: config.provider_id,
@@ -76,6 +75,12 @@ pub async fn seed_credentials(
             identifier: u.username,
             password,
         });
+    }
+
+    if !models_to_insert.is_empty() {
+        credential::Entity::insert_many(models_to_insert)
+            .exec(db)
+            .await?;
     }
 
     Ok(records)
