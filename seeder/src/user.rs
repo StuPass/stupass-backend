@@ -54,7 +54,7 @@ pub async fn seed_users(config: UserSeedConfig) -> Result<UniversityRegistry> {
     // Calculate number of universities:
     // clamp to [1, num_users / 10]
     let num_universities = match config.num_uni {
-        Some(n) => n.clamp(1, config.num_users / 10),
+        Some(n) => n.clamp(1, (config.num_users / 10).max(1)),
         None => (config.num_users / 10).max(1),
     };
 
