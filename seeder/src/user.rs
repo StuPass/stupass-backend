@@ -159,8 +159,8 @@ fn generate_partial_user<R: fake::rand::Rng + Sized>(
 
     let date_of_birth = NaiveDate::from_ymd_opt(
         rng.random_range(1995..2007),
-        rng.random_range(1..12),
-        rng.random_range(1..28),
+        rng.random_range(1..=12),
+        rng.random_range(1..=28),
     )
     .unwrap();
 
