@@ -17,3 +17,5 @@ uuid = "1.21.0"
 chrono = "0.4.43"
 anyhow = "1.0.101"
 rand = "0.10.0"
+clap = { version = "4.5.37", features = ["derive"] }
+dialoguer = "0.12.0"
