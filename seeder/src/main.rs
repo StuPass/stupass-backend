@@ -1,7 +1,11 @@
 use anyhow::Result;
 use clap::Parser;
 use dialoguer::Input;
-use seeder::{UserSeedConfig, seed_users};
+use sea_orm::Database;
+use seeder::{
+    CredentialSeedConfig, UserSeedConfig, seed_auth_provider, seed_credentials, seed_users,
+};
+use serde_json::to_string_pretty;
 
 /// StuPass database seeder CLI
 #[derive(Parser, Debug)]
@@ -47,12 +51,33 @@ async fn main() -> Result<()> {
 
     let config = UserSeedConfig {
         num_users,
-        db_url,
+        db_url: db_url.clone(),
         num_uni,
         seed: rng_seed,
     };
 
     seed_users(config).await?;
+
+    // Auth seeding (automatic)
+    println!("\n--- Auth Seeding ---");
+    let db = Database::connect(&db_url).await?;
+
+    let provider_id = seed_auth_provider(&db).await?;
+    println!("Password provider ID: {}", provider_id);
+
+    let credentials = seed_credentials(
+        &db,
+        CredentialSeedConfig {
+            provider_id,
+            rng_seed,
+        },
+    )
+    .await?;
+
+    if !credentials.is_empty() {
+        println!("\n--- Credentials (plaintext) ---");
+        println!("{}", to_string_pretty(&credentials)?);
+    }
 
     Ok(())
 }
@@ -94,9 +119,7 @@ fn prompt_missing(args: &Args) -> Result<(usize, String, Option<usize>, u64)> {
 
     let db_url = match &args.db_url {
         Some(url) => url.clone(),
-        None => Input::new()
-            .with_prompt("Database URL")
-            .interact_text()?,
+        None => Input::new().with_prompt("Database URL").interact_text()?,
     };
 
     Ok((num_users, db_url, args.num_uni, args.rng_seed))
@@ -117,9 +140,7 @@ where
             Ok(input)
         }
         None => {
-            let input: T = Input::new()
-                .with_prompt(prompt)
-                .interact_text()?;
+            let input: T = Input::new().with_prompt(prompt).interact_text()?;
             Ok(input)
         }
     }
