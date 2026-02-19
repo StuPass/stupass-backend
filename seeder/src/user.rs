@@ -90,8 +90,8 @@ pub async fn seed_users(config: UserSeedConfig) -> Result<UniversityRegistry> {
 
     println!("Inserting {} users...", complete_users.len());
 
-    for user_model in complete_users {
-        user_model.insert(&db).await?;
+    if !complete_users.is_empty() {
+        user::Entity::insert_many(complete_users).exec(&db).await?;
     }
 
     let count = user::Entity::find().count(&db).await?;
