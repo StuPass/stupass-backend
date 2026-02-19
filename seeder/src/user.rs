@@ -9,7 +9,7 @@ use fake::{
     rand::SeedableRng,
     rand::seq::IndexedRandom,
 };
-use sea_orm::{ActiveModelTrait, Database, DatabaseConnection, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, Database, DatabaseConnection, EntityTrait, PaginatorTrait, Set};
 use std::collections::HashMap;
 use stupass_backend::entities::user;
 use uuid::Uuid;
@@ -94,7 +94,7 @@ pub async fn seed_users(config: UserSeedConfig) -> Result<UniversityRegistry> {
         user_model.insert(&db).await?;
     }
 
-    let count = user::Entity::find().all(&db).await?.len();
+    let count = user::Entity::find().count(&db).await?;
 
     // Pretty-print university registry
     println!("\n{}", "=".repeat(50));
