@@ -1,7 +1,18 @@
-use axum::{Json, extract::Query};
+use axum::{Json, extract::Query, extract::State};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, IntoResponses, ToSchema};
 use uuid::Uuid;
+use sea_orm::TransactionTrait;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+    Argon2,
+};
+use tracing::{info, debug, error};
+use tokio::task;
+
+use crate::state::AppState;
+use crate::errors::AppError;
+use crate::repositories::auth::{user::UserRepository, credential::CredentialRepository};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse<T> {
@@ -14,9 +25,11 @@ pub struct MessageResponse<T> {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterRequest {
-    pub email: String,
+    pub phone: String,
     pub password: String,
     pub full_name: String,
+    pub student_id: String,
+    pub school_id: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -38,7 +51,7 @@ pub struct RefreshRequest {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ForgotPasswordRequest {
-    pub email: String,
+    pub phone: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -136,8 +149,84 @@ pub struct Conflict(pub MessageResponse<String>);
     ),
     tag = "auth",
 )]
-pub async fn register(Json(_payload): Json<RegisterRequest>) -> Json<RegisterResponse> {
-    todo!("Implement registration with User + Credential creation, send verification email")
+pub async fn register(
+    State(state): State<AppState>,
+    Json(payload): Json<RegisterRequest>,
+) -> Result<Json<RegisterResponse>, AppError> {
+    
+    info!("Starting registration process for phone: {}", payload.phone);
+
+    let password_to_hash = payload.password.clone();
+
+    debug!("Offloading password hashing to background thread...");
+
+    let hashed_password = task::spawn_blocking(move || {
+        let salt = SaltString::generate(&mut OsRng);
+        
+        let argon2 = Argon2::default();
+        
+        argon2.hash_password(password_to_hash.as_bytes(), &salt)
+            .map(|hash| hash.to_string())
+    })
+    .await
+    .map_err(|e| {
+        error!("Thread pool error during password hashing: {:?}", e);
+        AppError::InternalServerError
+    })?
+    .map_err(|e| {
+        error!("Failed to hash password: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    debug!("Password hashed successfully. Initiating database transaction.");
+
+    let txn = state.db.begin().await.map_err(|e| {
+        error!("Failed to begin txn: {:?}", e);
+        AppError::InternalServerError 
+    })?;
+
+    debug!("Inserting User record...");
+
+    let inserted_user = UserRepository::insert(
+        &txn,
+        payload.phone.clone(), 
+        payload.full_name,
+        payload.school_id,
+        payload.student_id,
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to insert user: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    debug!("User record created with ID: {}. Inserting Credential record...", inserted_user.id);
+
+    CredentialRepository::insert(
+        &txn,
+        inserted_user.id,
+        payload.phone,
+        hashed_password,
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to insert credential: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    debug!("Credential record created. Committing transaction...");
+
+    txn.commit().await.map_err(|e| {
+        error!("Failed to commit txn: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    info!("Successfully registered user ID: {}", inserted_user.id);
+
+    Ok(Json(RegisterResponse {
+        user_id: inserted_user.id,
+        message: String::from("User registered successfully!"),
+    }))
 }
 
 /// Login with credentials

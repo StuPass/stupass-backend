@@ -6,6 +6,9 @@ use axum::{
 };
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use tower_http::cors::{Any, CorsLayer};
+use http::Method;
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 
 use crate::handlers::auth;
 use crate::handlers::general;
@@ -52,6 +55,11 @@ struct ApiDoc;
 
 // Function to create the main application router
 pub fn app_router(state: AppState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any) 
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers([CONTENT_TYPE, AUTHORIZATION, ACCEPT]);
+
     Router::new()
         .route("/health", get(general::health))
         // Auth routes
@@ -66,6 +74,7 @@ pub fn app_router(state: AppState) -> Router {
         .with_state(state)
         // Swagger UI at root
         .merge(SwaggerUi::new("/").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .layer(cors)
 }
 
 // Handler for 404 Not Found errors
