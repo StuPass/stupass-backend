@@ -279,7 +279,7 @@ pub async fn register(
 
     let provider_id = AuthProvider::find()
         .filter(auth_provider::Column::Name.eq("Password"))
-        .one(&state.db)
+        .one(&txn)
         .await
         .map_err(|e| {
             error!("Database error during auth provider lookup: {:?}", e);
