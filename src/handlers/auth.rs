@@ -255,7 +255,7 @@ pub async fn register(
     let new_user = user::ActiveModel {
         id: Set(Uuid::new_v4()),
         username: Set(payload.username.clone()),
-        email: Set("student@placeholder.edu".to_owned()), // TODO: FE add email-password based registration
+        email: Set(format!("{}@placeholder.edu", payload.username)), // TODO: FE add email-password based registration
         phone: Set(payload.phone.clone()),
         full_name: Set(payload.full_name),
         school_id: Set(payload.school_id),
