@@ -1,24 +1,24 @@
-use tracing_subscriber::prelude::*;
-use sea_orm::Database;
-use migration::{Migrator, MigratorTrait};
-use std::net::SocketAddr;
-use dotenvy::dotenv;
 use axum::{
     Router,
-    routing::{get, post},
     http::StatusCode,
-    response::IntoResponse
+    response::IntoResponse,
+    routing::{get, post},
 };
-use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
-use tower_http::cors::{Any, CorsLayer};
+use dotenvy::dotenv;
 use http::Method;
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
+use migration::{Migrator, MigratorTrait};
+use sea_orm::Database;
+use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
+use tracing_subscriber::prelude::*;
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
-use stupass_backend::state::AppState;
 use stupass_backend::config::config;
 use stupass_backend::handlers::auth;
 use stupass_backend::handlers::general;
+use stupass_backend::state::AppState;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -82,7 +82,7 @@ async fn main() {
     };
 
     let cors = CorsLayer::new()
-        .allow_origin(Any) 
+        .allow_origin(Any)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers([CONTENT_TYPE, AUTHORIZATION, ACCEPT]);
 
@@ -111,21 +111,21 @@ async fn main() {
         .await
         .expect("Failed to bind to address");
 
-    tracing::info!("Server listening on http://127.0.0.1:3000 (http://{})", socket_addr);
+    tracing::info!(
+        "Server listening on http://127.0.0.1:3000 (http://{})",
+        socket_addr
+    );
     tracing::info!("API docs available at http://127.0.0.1:3000/");
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    axum::serve(listener, app).await.expect("Server error");
 }
 
 // Function to initialize tracing
 fn init_tracing() {
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "info,stupass_backend=debug".into()
-            }),
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info,stupass_backend=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
