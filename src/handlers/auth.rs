@@ -2,17 +2,18 @@ use axum::{Json, extract::Query, extract::State};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, IntoResponses, ToSchema};
 use uuid::Uuid;
-use sea_orm::TransactionTrait;
+use sea_orm::{TransactionTrait, ActiveModelTrait, Set};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
     Argon2,
 };
 use tracing::{info, debug, error};
 use tokio::task;
+use chrono::Utc;
 
 use crate::state::AppState;
 use crate::errors::AppError;
-use crate::repositories::auth::{user::UserRepository, credential::CredentialRepository};
+use crate::entities::{credential, user};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse<T> {
@@ -187,39 +188,59 @@ pub async fn register(
 
     debug!("Inserting User record...");
 
-    let inserted_user = UserRepository::insert(
-        &txn,
-        payload.phone.clone(), 
-        payload.full_name,
-        payload.school_id,
-        payload.student_id,
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to insert user: {:?}", e);
-        AppError::InternalServerError
-    })?;
+    let now = Utc::now();
+
+    let new_user = user::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        phone: Set(payload.phone.clone()),
+        full_name: Set(payload.full_name),
+        school_id: Set(payload.school_id),
+        student_id: Set(payload.student_id),
+        reputation_score: Set(10),
+        verification_status: Set(String::from("pending")),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+
+    let inserted_user = new_user
+        .insert(&txn)
+        .await
+        .map_err(|e| {
+            error!("Failed to insert user: {:?}", e);
+            AppError::InternalServerError
+        })?;
 
     debug!("User record created with ID: {}. Inserting Credential record...", inserted_user.id);
 
-    CredentialRepository::insert(
-        &txn,
-        inserted_user.id,
-        payload.phone,
-        hashed_password,
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to insert credential: {:?}", e);
-        AppError::InternalServerError
-    })?;
+    let new_credential = credential::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        identifier: Set(payload.phone.clone()), 
+        secret: Set(hashed_password),
+        provider_id: Set(1), 
+        user_id: Set(inserted_user.id),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+
+    new_credential
+        .insert(&txn)
+        .await
+        .map_err(|e| {
+            error!("Failed to insert credential: {:?}", e);
+            AppError::InternalServerError
+        })?;
 
     debug!("Credential record created. Committing transaction...");
 
-    txn.commit().await.map_err(|e| {
-        error!("Failed to commit txn: {:?}", e);
-        AppError::InternalServerError
-    })?;
+    txn
+        .commit()
+        .await
+        .map_err(|e| {
+            error!("Failed to commit txn: {:?}", e);
+            AppError::InternalServerError
+        })?;
 
     info!("Successfully registered user ID: {}", inserted_user.id);
 
