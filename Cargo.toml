@@ -30,3 +30,4 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 uuid = { version = "1.21.0", features = ["fast-rng", "v4", "serde"]}
 chrono = "0.4.43"
 argon2 = { version = "0.5.3", features = ["std"] }
+jsonwebtoken = "10.3.0"
