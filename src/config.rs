@@ -1,5 +1,4 @@
 use std::env;
-use dotenvy::dotenv;
 use tokio::sync::OnceCell;
 
 #[derive(Debug)]
@@ -13,10 +12,18 @@ struct DatabaseConfig {
     url: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct JwtConfig {
+    pub secret: String,
+    pub access_token_expiry: i64,  // seconds
+    pub refresh_token_expiry: i64, // seconds
+}
+
 #[derive(Debug)]
 pub struct Config {
     server: ServerConfig,
     db: DatabaseConfig,
+    jwt: JwtConfig,
 }
 
 impl Config {
@@ -31,14 +38,15 @@ impl Config {
     pub fn server_port(&self) -> u16 {
         self.server.port
     }
+
+    pub fn jwt(&self) -> &JwtConfig {
+        &self.jwt
+    }
 }
 
 pub static CONFIG: OnceCell<Config> = OnceCell::const_new();
 
 async fn init_config() -> Config {
-    // Load environment variables from a .env file if present
-    dotenv().ok();
-
     // Create a ServerConfig instance with default values or values from environment variables
     let server_config = ServerConfig {
         host: env::var("HOST").unwrap_or_else(|_| String::from("0.0.0.0")),
@@ -53,10 +61,23 @@ async fn init_config() -> Config {
         url: env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
     };
 
-    // Create a Config instance by combining server and database configurations
+    // Create a JwtConfig instance
+    let jwt_config = JwtConfig {
+        secret: env::var("JWT_SECRET").expect("JWT_SECRET must be set"),
+        access_token_expiry: env::var("JWT_ACCESS_EXPIRY")
+            .unwrap_or_else(|_| String::from("3600"))
+            .parse::<i64>()
+            .expect("JWT_ACCESS_EXPIRY must be a valid number"),
+        refresh_token_expiry: env::var("JWT_REFRESH_EXPIRY")
+            .unwrap_or_else(|_| String::from("604800"))
+            .parse::<i64>()
+            .expect("JWT_REFRESH_EXPIRY must be a valid number"),
+    };
+
     Config {
         server: server_config,
         db: database_config,
+        jwt: jwt_config,
     }
 }
 

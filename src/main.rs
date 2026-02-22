@@ -25,7 +25,10 @@ async fn main() {
         return;
     }
 
-    let state = AppState { db };
+    let state = AppState {
+        db,
+        jwt: app_config.jwt().clone(),
+    };
 
     let app = app_router(state.clone());
 

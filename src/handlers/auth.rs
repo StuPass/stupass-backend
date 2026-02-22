@@ -1,18 +1,83 @@
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
+};
 use axum::{Json, extract::Query, extract::State};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use chrono::{Duration, Utc};
+use jsonwebtoken::{EncodingKey, Header, encode};
+use rand::RngCore;
+use sea_orm::entity::prelude::*;
+use sea_orm::{ActiveModelTrait, EntityTrait, Set, TransactionTrait};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use tokio::task;
+use tracing::{debug, error, info};
 use utoipa::{IntoParams, IntoResponses, ToSchema};
 use uuid::Uuid;
-use sea_orm::TransactionTrait;
-use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-    Argon2,
-};
-use tracing::{info, debug, error};
-use tokio::task;
 
-use crate::state::AppState;
+use crate::entities::{
+    auth_provider, auth_provider::Entity as AuthProvider, credential,
+    credential::Entity as Credential, session,
+};
 use crate::errors::AppError;
-use crate::repositories::auth::{user::UserRepository, credential::CredentialRepository};
+use crate::repositories::auth::{credential::CredentialRepository, user::UserRepository};
+use crate::state::AppState;
+
+// ============================================================================
+// JWT Claims
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String, // user_id
+    pub exp: usize,  // expiration (Unix timestamp)
+    pub iat: usize,  // issued at (Unix timestamp)
+}
+
+// ============================================================================
+// Token Generation Helpers
+// ============================================================================
+
+/// Generate a 64-character random session token (base64-encoded)
+fn generate_session_token() -> String {
+    let mut bytes = [0u8; 48]; // 48 bytes -> 64 base64 chars
+    rand::rng().fill_bytes(&mut bytes);
+    URL_SAFE_NO_PAD.encode(bytes)
+}
+
+/// Hash a token using SHA256
+fn hash_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+/// Generate a JWT access token
+fn generate_access_token(
+    user_id: Uuid,
+    secret: &str,
+    expiry_seconds: i64,
+) -> Result<String, AppError> {
+    let now = Utc::now();
+    let exp = now + Duration::seconds(expiry_seconds);
+
+    let claims = Claims {
+        sub: user_id.to_string(),
+        exp: exp.timestamp() as usize,
+        iat: now.timestamp() as usize,
+    };
+
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .map_err(|e| {
+        error!("Failed to encode JWT: {:?}", e);
+        AppError::InternalServerError
+    })
+}
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse<T> {
@@ -153,7 +218,6 @@ pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<Json<RegisterResponse>, AppError> {
-    
     info!("Starting registration process for phone: {}", payload.phone);
 
     let password_to_hash = payload.password.clone();
@@ -162,10 +226,9 @@ pub async fn register(
 
     let hashed_password = task::spawn_blocking(move || {
         let salt = SaltString::generate(&mut OsRng);
-        
         let argon2 = Argon2::default();
-        
-        argon2.hash_password(password_to_hash.as_bytes(), &salt)
+        argon2
+            .hash_password(password_to_hash.as_bytes(), &salt)
             .map(|hash| hash.to_string())
     })
     .await
@@ -182,14 +245,14 @@ pub async fn register(
 
     let txn = state.db.begin().await.map_err(|e| {
         error!("Failed to begin txn: {:?}", e);
-        AppError::InternalServerError 
+        AppError::InternalServerError
     })?;
 
     debug!("Inserting User record...");
 
     let inserted_user = UserRepository::insert(
         &txn,
-        payload.phone.clone(), 
+        payload.phone.clone(),
         payload.full_name,
         payload.school_id,
         payload.student_id,
@@ -200,19 +263,17 @@ pub async fn register(
         AppError::InternalServerError
     })?;
 
-    debug!("User record created with ID: {}. Inserting Credential record...", inserted_user.id);
+    debug!(
+        "User record created with ID: {}. Inserting Credential record...",
+        inserted_user.id
+    );
 
-    CredentialRepository::insert(
-        &txn,
-        inserted_user.id,
-        payload.phone,
-        hashed_password,
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to insert credential: {:?}", e);
-        AppError::InternalServerError
-    })?;
+    CredentialRepository::insert(&txn, inserted_user.id, payload.phone, hashed_password)
+        .await
+        .map_err(|e| {
+            error!("Failed to insert credential: {:?}", e);
+            AppError::InternalServerError
+        })?;
 
     debug!("Credential record created. Committing transaction...");
 
@@ -242,8 +303,100 @@ pub async fn register(
     ),
     tag = "auth",
 )]
-pub async fn login(Json(_payload): Json<LoginRequest>) -> Json<LoginResponse> {
-    todo!("Implement login with Session creation, return JWT tokens")
+pub async fn login(
+    State(state): State<AppState>,
+    Json(payload): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, AppError> {
+    // TODO: Add ConnectInfo argument
+    info!("Login attempt for identifier: {}", payload.identifier);
+
+    // Lookup "Password" provider ID (assumes it exists)
+    let provider_id = AuthProvider::find()
+        .filter(auth_provider::Column::Name.eq("Password"))
+        .one(&state.db)
+        .await
+        .map_err(|e| {
+            error!("Database error during auth provider lookup: {:?}", e);
+            AppError::InternalServerError
+        })?
+        .ok_or_else(|| {
+            error!("Auth provider 'Password' not found in database");
+            AppError::InternalServerError
+        })?
+        .id;
+
+    // Lookup Credential with "Password" provider and identifier
+    let credential: credential::Model = Credential::find()
+        .filter(credential::Column::ProviderId.eq(provider_id))
+        .filter(credential::Column::Identifier.eq(&payload.identifier))
+        .one(&state.db)
+        .await
+        .map_err(|e| {
+            error!("Database error during credential lookup: {:?}", e);
+            AppError::InternalServerError
+        })?
+        .ok_or_else(|| {
+            info!("No credential found for identifier: {}", payload.identifier);
+            AppError::InternalServerError
+        })?;
+
+    // Retain user_id before moving credential into spawn_blocking
+    let user_id = credential.user_id;
+
+    // Verify payload password against stored hash
+    let verify_result = task::spawn_blocking(move || {
+        let parsed_hash = PasswordHash::new(&credential.secret).unwrap();
+
+        Argon2::default()
+            .verify_password(payload.password.as_bytes(), &parsed_hash)
+            .is_ok()
+    })
+    .await
+    .map_err(|e| {
+        error!("Thread pool error during password verification: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    if !verify_result {
+        info!("Invalid password for identifier: {}", payload.identifier);
+        return Err(AppError::InternalServerError);
+    }
+
+    // Generate access token (JWT)
+    let access_token =
+        generate_access_token(user_id, &state.jwt.secret, state.jwt.access_token_expiry)?;
+
+    // Generate refresh token (64-char random string)
+    let refresh_token = generate_session_token();
+    let refresh_token_hash = hash_token(&refresh_token);
+
+    // Create session record
+    let now = Utc::now();
+    let expires_at = now + Duration::seconds(state.jwt.refresh_token_expiry);
+
+    let new_session = session::ActiveModel {
+        session_token_hash: Set(refresh_token_hash),
+        ip_address: Set(None), // TODO: Extract IP from request or headers
+        user_agent: Set(None), // TODO: Extract User-Agent from request headers
+        valid_from: Set(now),
+        expires_at: Set(expires_at),
+        last_refresh: Set(now),
+        user_id: Set(user_id),
+        ..Default::default()
+    };
+
+    new_session.insert(&state.db).await.map_err(|e| {
+        error!("Failed to create session: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    Ok(Json(LoginResponse {
+        tokens: AuthTokens {
+            access_token,
+            refresh_token,
+            expires_in: state.jwt.access_token_expiry,
+        },
+    }))
 }
 
 /// Logout and invalidate session
