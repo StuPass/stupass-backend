@@ -18,10 +18,9 @@ use uuid::Uuid;
 
 use crate::entities::{
     auth_provider, auth_provider::Entity as AuthProvider, credential,
-    credential::Entity as Credential, session,
+    credential::Entity as Credential, session, user,
 };
 use crate::errors::AppError;
-use crate::repositories::auth::{credential::CredentialRepository, user::UserRepository};
 use crate::state::AppState;
 
 // ============================================================================
@@ -250,15 +249,22 @@ pub async fn register(
 
     debug!("Inserting User record...");
 
-    let inserted_user = UserRepository::insert(
-        &txn,
-        payload.phone.clone(),
-        payload.full_name,
-        payload.school_id,
-        payload.student_id,
-    )
-    .await
-    .map_err(|e| {
+    let now = Utc::now();
+
+    let new_user = user::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        phone: Set(payload.phone.clone()),
+        full_name: Set(payload.full_name),
+        school_id: Set(payload.school_id),
+        student_id: Set(payload.student_id),
+        reputation_score: Set(10),
+        verification_status: Set(String::from("pending")),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+
+    let inserted_user = new_user.insert(&txn).await.map_err(|e| {
         error!("Failed to insert user: {:?}", e);
         AppError::InternalServerError
     })?;
@@ -268,12 +274,21 @@ pub async fn register(
         inserted_user.id
     );
 
-    CredentialRepository::insert(&txn, inserted_user.id, payload.phone, hashed_password)
-        .await
-        .map_err(|e| {
-            error!("Failed to insert credential: {:?}", e);
-            AppError::InternalServerError
-        })?;
+    let new_credential = credential::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        identifier: Set(payload.phone.clone()),
+        secret: Set(hashed_password),
+        provider_id: Set(1),
+        user_id: Set(inserted_user.id),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    };
+
+    new_credential.insert(&txn).await.map_err(|e| {
+        error!("Failed to insert credential: {:?}", e);
+        AppError::InternalServerError
+    })?;
 
     debug!("Credential record created. Committing transaction...");
 
