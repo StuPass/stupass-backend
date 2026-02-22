@@ -89,6 +89,7 @@ pub struct MessageResponse<T> {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterRequest {
+    pub username: String,
     pub phone: String,
     pub password: String,
     pub full_name: String,
@@ -253,6 +254,8 @@ pub async fn register(
 
     let new_user = user::ActiveModel {
         id: Set(Uuid::new_v4()),
+        username: Set(payload.username.clone()),
+        email: Set("student@placeholder.edu".to_owned()), // TODO: FE add email-password based registration
         phone: Set(payload.phone.clone()),
         full_name: Set(payload.full_name),
         school_id: Set(payload.school_id),
