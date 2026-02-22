@@ -277,11 +277,25 @@ pub async fn register(
         inserted_user.id
     );
 
+    let provider_id = AuthProvider::find()
+        .filter(auth_provider::Column::Name.eq("Password"))
+        .one(&state.db)
+        .await
+        .map_err(|e| {
+            error!("Database error during auth provider lookup: {:?}", e);
+            AppError::InternalServerError
+        })?
+        .ok_or_else(|| {
+            error!("Auth provider 'Password' not found in database");
+            AppError::InternalServerError
+        })?
+        .id;
+
     let new_credential = credential::ActiveModel {
         id: Set(Uuid::new_v4()),
         identifier: Set(payload.phone.clone()),
         secret: Set(hashed_password),
-        provider_id: Set(1),
+        provider_id: Set(provider_id),
         user_id: Set(inserted_user.id),
         created_at: Set(now),
         updated_at: Set(now),
