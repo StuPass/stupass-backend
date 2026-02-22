@@ -27,3 +27,4 @@ target
 *.db
 # SQLite database browser project file
 *.sqbpro
+*credential.json
