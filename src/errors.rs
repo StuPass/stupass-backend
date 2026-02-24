@@ -6,6 +6,7 @@ use serde_json::json;
 #[derive(Debug)]
 pub enum AppError {
     InternalServerError,
+    Unauthorized,
     BodyParsingError(String),
 }
 
@@ -20,6 +21,10 @@ impl IntoResponse for AppError {
             Self::InternalServerError => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 String::from("Internal Server Error"),
+            ),
+            Self::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                String::from("Unauthorized"),
             ),
             Self::BodyParsingError(message) => (
                 StatusCode::BAD_REQUEST,

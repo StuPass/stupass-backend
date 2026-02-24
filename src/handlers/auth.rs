@@ -17,8 +17,10 @@ use utoipa::{IntoParams, IntoResponses, ToSchema};
 use uuid::Uuid;
 
 use crate::entities::{
-    auth_provider, auth_provider::Entity as AuthProvider, credential,
-    credential::Entity as Credential, session, user,
+    auth_provider, credential, session, user
+};
+use crate::entities::prelude::{
+    AuthProvider, Credential, PasswordResetToken, Session, User
 };
 use crate::errors::AppError;
 use crate::state::AppState;
@@ -444,8 +446,31 @@ pub async fn login(
     ),
     tag = "auth",
 )]
-pub async fn logout(Json(_payload): Json<LogoutRequest>) -> Json<LogoutResponse> {
-    todo!("Implement session invalidation")
+pub async fn logout(
+    State(state): State<AppState>,
+    Json(payload): Json<LogoutRequest>,
+) -> Result<Json<LogoutResponse>, AppError> {
+
+    let token_str = payload.refresh_token.as_deref().ok_or(AppError::Unauthorized)?;
+    let incoming_hash = hash_token(token_str);
+
+    // Find and delete the session.
+    let result = Session::delete_many()
+        .filter(session::Column::SessionTokenHash.eq(incoming_hash))
+        .exec(&state.db)
+        .await
+        .map_err(|e| {
+            error!("Database error during logout: {:?}", e);
+            AppError::InternalServerError
+        })?;
+
+    if result.rows_affected == 0 {
+        debug!("Logout requested for token that doesn't exist. Treating as success.");
+    }
+
+    Ok(Json(LogoutResponse(
+        MessageResponse{ message: String::from("Successfully logged out") }
+    )))
 }
 
 /// Refresh access token
@@ -461,8 +486,70 @@ pub async fn logout(Json(_payload): Json<LogoutRequest>) -> Json<LogoutResponse>
     ),
     tag = "auth",
 )]
-pub async fn refresh(Json(_payload): Json<RefreshRequest>) -> Json<RefreshResponse> {
-    todo!("Implement session token refresh, rotate refresh token")
+pub async fn refresh(
+    State(state): State<AppState>,
+    Json(payload): Json<RefreshRequest>,
+) -> Result<Json<RefreshResponse>, AppError> {
+
+    let incoming_hash = hash_token(&payload.refresh_token);
+
+    // Look up the session in the database
+    let session_record: session::Model = Session::find()
+        .filter(session::Column::SessionTokenHash.eq(&incoming_hash))
+        .one(&state.db)
+        .await
+        .map_err(|e| {
+            error!("Database error during session lookup: {:?}", e);
+            AppError::InternalServerError
+        })?
+        .ok_or_else(|| {
+            info!("Attempted to refresh with invalid or expired token.");
+            AppError::Unauthorized // Return 401 to force the user to log in again
+        })?;
+
+    let now = Utc::now();
+
+    // Check if the session has expired
+    if session_record.expires_at < now {
+        info!("Refresh token expired for user: {}", session_record.user_id);
+        
+        // Delete the expired session
+        let _ = session_record.clone().delete(&state.db).await;
+        
+        return Err(AppError::Unauthorized);
+    }
+
+    // Generate the new Access Token (JWT)
+    let new_access_token = generate_access_token(
+        session_record.user_id, 
+        &state.jwt.secret, 
+        state.jwt.access_token_expiry
+    )?;
+
+    // Generate a new Refresh Token (Token Rotation)
+    let new_refresh_token = generate_session_token();
+    let new_refresh_hash = hash_token(&new_refresh_token);
+    let new_expires_at = now + Duration::seconds(state.jwt.refresh_token_expiry);
+
+    // Update the existing session record with the new hash and expiration
+    let mut active_session: session::ActiveModel = session_record.into();
+    active_session.session_token_hash = Set(new_refresh_hash);
+    active_session.last_refresh = Set(now);
+    active_session.expires_at = Set(new_expires_at);
+
+    active_session.update(&state.db).await.map_err(|e| {
+        error!("Failed to update session: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    // Return the new pair to the user
+    Ok(Json(RefreshResponse {
+        tokens: AuthTokens {
+            access_token: new_access_token,
+            refresh_token: new_refresh_token,
+            expires_in: state.jwt.access_token_expiry,
+        },
+    }))
 }
 
 /// Request password reset
