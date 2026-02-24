@@ -13,7 +13,6 @@ pub struct Model {
     pub video_url: Option<String>,
     pub price: i32,
     pub original_price: Option<i32>,
-    pub quantity: i32,
     pub category_id: Uuid,
     pub condition_id: Uuid,
     pub city_id: Uuid,

@@ -62,7 +62,6 @@ impl MigrationTrait for Migration {
                     .col(string_null(Listing::VideoUrl))
                     .col(integer(Listing::Price).not_null().default(0))
                     .col(integer_null(Listing::OriginalPrice))
-                    .col(integer(Listing::Quantity).not_null().default(1))
                     .col(uuid(Listing::CategoryId).not_null())
                     .col(uuid(Listing::ConditionId).not_null())
                     .col(uuid(Listing::CityId).not_null())
@@ -269,7 +268,6 @@ enum Listing {
     VideoUrl,
     Price,
     OriginalPrice,
-    Quantity,
     CategoryId,
     ConditionId,
     CityId,
