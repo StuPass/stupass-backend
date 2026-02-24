@@ -152,7 +152,7 @@ impl MigrationTrait for Migration {
                             .name("fk-listing-seller")
                             .from(Listing::Table, Listing::SellerId)
                             .to(User::Table, User::Id)
-                            .on_delete(ForeignKeyAction::SetNull),
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
@@ -181,21 +181,21 @@ impl MigrationTrait for Migration {
                             .name("fk-report-listing")
                             .from(Report::Table, Report::ListingId)
                             .to(Listing::Table, Listing::Id)
-                            .on_delete(ForeignKeyAction::SetNull),
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-report-reporter")
                             .from(Report::Table, Report::ReporterId)
                             .to(User::Table, User::Id)
-                            .on_delete(ForeignKeyAction::SetNull),
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-report-reported-user")
                             .from(Report::Table, Report::ReportedUserId)
                             .to(User::Table, User::Id)
-                            .on_delete(ForeignKeyAction::SetNull),
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
@@ -224,14 +224,14 @@ impl MigrationTrait for Migration {
                             .name("fk-review-writer")
                             .from(Review::Table, Review::WriterId)
                             .to(User::Table, User::Id)
-                            .on_delete(ForeignKeyAction::SetNull),
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-review-receiver")
                             .from(Review::Table, Review::ReceiverId)
                             .to(User::Table, User::Id)
-                            .on_delete(ForeignKeyAction::SetNull),
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
