@@ -21,44 +21,6 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager
-            .create_table(
-                Table::create()
-                    .table(District::Table)
-                    .if_not_exists()
-                    .col(uuid(District::Id).primary_key())
-                    .col(string(District::Name).not_null())
-                    .col(uuid(District::CityId).not_null())
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk-district-city")
-                            .from(District::Table, District::CityId)
-                            .to(City::Table, City::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_table(
-                Table::create()
-                    .table(Ward::Table)
-                    .if_not_exists()
-                    .col(uuid(Ward::Id).primary_key())
-                    .col(string(Ward::Name).not_null())
-                    .col(uuid(Ward::DistrictId).not_null())
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk-ward-district")
-                            .from(Ward::Table, Ward::DistrictId)
-                            .to(District::Table, District::Id)
-                            .on_delete(ForeignKeyAction::Cascade),
-                    )
-                    .to_owned(),
-            )
-            .await?;
-
         // ==========================================
         // 2. Lookup Tables (Category & Condition)
         // ==========================================
@@ -104,8 +66,6 @@ impl MigrationTrait for Migration {
                     .col(uuid(Listing::CategoryId).not_null())
                     .col(uuid(Listing::ConditionId).not_null())
                     .col(uuid(Listing::CityId).not_null())
-                    .col(uuid(Listing::DistrictId).not_null())
-                    .col(uuid(Listing::WardId).not_null())
                     .col(string_null(Listing::StreetAddress))
                     .col(string(Listing::Status).not_null().default("available"))
                     .col(uuid(Listing::SellerId).not_null())
@@ -131,20 +91,6 @@ impl MigrationTrait for Migration {
                             .name("fk-listing-city")
                             .from(Listing::Table, Listing::CityId)
                             .to(City::Table, City::Id)
-                            .on_delete(ForeignKeyAction::Restrict),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk-listing-district")
-                            .from(Listing::Table, Listing::DistrictId)
-                            .to(District::Table, District::Id)
-                            .on_delete(ForeignKeyAction::Restrict),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk-listing-ward")
-                            .from(Listing::Table, Listing::WardId)
-                            .to(Ward::Table, Ward::Id)
                             .on_delete(ForeignKeyAction::Restrict),
                     )
                     .foreign_key(
@@ -266,8 +212,6 @@ impl MigrationTrait for Migration {
         manager.drop_table(Table::drop().table(Listing::Table).to_owned()).await?;
         manager.drop_table(Table::drop().table(Condition::Table).to_owned()).await?;
         manager.drop_table(Table::drop().table(Category::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(Ward::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(District::Table).to_owned()).await?;
         manager.drop_table(Table::drop().table(City::Table).to_owned()).await?;
         Ok(())
     }
@@ -301,22 +245,6 @@ enum City {
 }
 
 #[derive(DeriveIden)]
-enum District {
-    Table,
-    Id,
-    Name,
-    CityId,
-}
-
-#[derive(DeriveIden)]
-enum Ward {
-    Table,
-    Id,
-    Name,
-    DistrictId,
-}
-
-#[derive(DeriveIden)]
 enum Category {
     Table,
     Id,
@@ -345,8 +273,6 @@ enum Listing {
     CategoryId,
     ConditionId,
     CityId,
-    DistrictId,
-    WardId,
     StreetAddress,
     Status,
     SellerId,

@@ -17,8 +17,6 @@ pub struct Model {
     pub category_id: Uuid,
     pub condition_id: Uuid,
     pub city_id: Uuid,
-    pub district_id: Uuid,
-    pub ward_id: Uuid,
     pub street_address: Option<String>,
     pub status: String,
     pub seller_id: Uuid,
@@ -53,14 +51,6 @@ pub enum Relation {
         on_delete = "Restrict"
     )]
     Condition,
-    #[sea_orm(
-        belongs_to = "super::district::Entity",
-        from = "Column::DistrictId",
-        to = "super::district::Column::Id",
-        on_update = "NoAction",
-        on_delete = "Restrict"
-    )]
-    District,
     #[sea_orm(has_many = "super::report::Entity")]
     Report,
     #[sea_orm(
@@ -71,14 +61,6 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     User,
-    #[sea_orm(
-        belongs_to = "super::ward::Entity",
-        from = "Column::WardId",
-        to = "super::ward::Column::Id",
-        on_update = "NoAction",
-        on_delete = "Restrict"
-    )]
-    Ward,
 }
 
 impl Related<super::category::Entity> for Entity {
@@ -99,12 +81,6 @@ impl Related<super::condition::Entity> for Entity {
     }
 }
 
-impl Related<super::district::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::District.def()
-    }
-}
-
 impl Related<super::report::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Report.def()
@@ -114,12 +90,6 @@ impl Related<super::report::Entity> for Entity {
 impl Related<super::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::User.def()
-    }
-}
-
-impl Related<super::ward::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Ward.def()
     }
 }
 

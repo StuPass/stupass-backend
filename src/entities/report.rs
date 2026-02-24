@@ -25,7 +25,7 @@ pub enum Relation {
         from = "Column::ListingId",
         to = "super::listing::Column::Id",
         on_update = "NoAction",
-        on_delete = "SetNull"
+        on_delete = "Cascade"
     )]
     Listing,
     #[sea_orm(

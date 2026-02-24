@@ -2,13 +2,12 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "review")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    #[sea_orm(column_type = "Float")]
-    pub attitude_rating: f32,
+    pub attitude_rating: i32,
     pub comment: String,
     pub picture_url: Option<String>,
     pub video_url: Option<String>,
