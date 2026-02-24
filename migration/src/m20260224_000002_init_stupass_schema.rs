@@ -210,7 +210,7 @@ impl MigrationTrait for Migration {
                     .table(Review::Table)
                     .if_not_exists()
                     .col(uuid(Review::Id).primary_key())
-                    .col(float(Review::AttitudeRating).not_null())
+                    .col(integer(Review::AttitudeRating).not_null())
                     .col(string(Review::Comment).not_null())
                     .col(string_null(Review::PictureUrl))
                     .col(string_null(Review::VideoUrl))
