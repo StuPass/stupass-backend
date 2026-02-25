@@ -12,7 +12,7 @@ pub struct Model {
     #[sea_orm(unique)]
     pub email: String,
     #[sea_orm(unique)]
-    pub phone: String,
+    pub phone: Option<String>,
     pub full_name: String,
     pub avatar_url: Option<String>,
     pub bio: Option<String>,
