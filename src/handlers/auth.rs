@@ -257,7 +257,7 @@ pub async fn register(
     let new_user = user::ActiveModel {
         id: Set(Uuid::new_v4()),
         username: Set(payload.username.clone()),
-        email: Set(format!("{}@placeholder.edu", payload.username)), // TODO: FE add email-password based registration
+        email: Set(payload.email.clone()), 
         phone: Set(payload.phone.clone()),
         full_name: Set(payload.full_name),
         school_id: Set(payload.school_id),
@@ -371,7 +371,7 @@ pub async fn login(
         })?
         .ok_or_else(|| {
             info!("No credential found for identifier: {}", payload.identifier);
-            AppError::InternalServerError
+            AppError::Unauthorized
         })?;
 
     // Retain user_id before moving credential into spawn_blocking
@@ -393,7 +393,7 @@ pub async fn login(
 
     if !verify_result {
         info!("Invalid password for identifier: {}", payload.identifier);
-        return Err(AppError::InternalServerError);
+        return Err(AppError::Unauthorized);
     }
 
     // Generate access token (JWT)
