@@ -3,7 +3,13 @@
 pub mod prelude;
 
 pub mod auth_provider;
+pub mod category;
+pub mod city;
+pub mod condition;
 pub mod credential;
+pub mod listing;
 pub mod password_reset_token;
+pub mod report;
+pub mod review;
 pub mod session;
 pub mod user;
