@@ -20,6 +20,7 @@ use stupass_backend::config::config;
 use stupass_backend::handlers::auth;
 use stupass_backend::handlers::general;
 use stupass_backend::state::AppState;
+use stupass_backend::rate_limit::RateLimiter;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -84,6 +85,7 @@ async fn main() {
         fe_url: app_config.frontend_url().to_string().clone(),
         server_url: app_config.server_url().to_string().clone(),
         http_client: Client::new(),
+        rate_limiter: RateLimiter::new(),
     };
 
     let cors = CorsLayer::new()
