@@ -6,4 +6,8 @@ use crate::config::JwtConfig;
 pub struct AppState {
     pub db: DatabaseConnection,
     pub jwt: JwtConfig,
+    pub http_client: reqwest::Client,
+    pub resend_api_key: String,
+    pub fe_url: String,
+    pub server_url: String,
 }

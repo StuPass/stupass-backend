@@ -5,6 +5,8 @@ use tokio::sync::OnceCell;
 struct ServerConfig {
     host: String,
     port: u16,
+    frontend_url: String, 
+    server_url: String,
 }
 
 #[derive(Debug)]
@@ -24,6 +26,7 @@ pub struct Config {
     server: ServerConfig,
     db: DatabaseConfig,
     jwt: JwtConfig,
+    resend_api_key: String,
 }
 
 impl Config {
@@ -42,6 +45,18 @@ impl Config {
     pub fn jwt(&self) -> &JwtConfig {
         &self.jwt
     }
+
+    pub fn frontend_url(&self) -> &str {
+        &self.server.frontend_url
+    }
+    
+    pub fn server_url(&self) -> &str {
+        &self.server.server_url
+    }
+
+    pub fn resend_api_key(&self) -> &str {
+        &self.resend_api_key
+    }
 }
 
 pub static CONFIG: OnceCell<Config> = OnceCell::const_new();
@@ -54,6 +69,10 @@ async fn init_config() -> Config {
             .unwrap_or_else(|_| String::from("3000"))
             .parse::<u16>()
             .unwrap(),
+        frontend_url: env::var("FRONTEND_URL")
+            .unwrap_or_else(|_| String::from("stupass://")),
+        server_url: env::var("SERVER_URL")
+            .expect("SERVER_URL must be set"),
     };
 
     // Create a DatabaseConfig instance with a required DATABASE_URL environment variable
@@ -74,10 +93,13 @@ async fn init_config() -> Config {
             .expect("JWT_REFRESH_EXPIRY must be a valid number"),
     };
 
+    let resend_api_key = env::var("RESEND_API_KEY").expect("RESEND_API_KEY must be set");
+
     Config {
         server: server_config,
         db: database_config,
         jwt: jwt_config,
+        resend_api_key,
     }
 }
 

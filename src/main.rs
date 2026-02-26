@@ -1,3 +1,4 @@
+use reqwest::Client;
 use axum::{
     Router,
     http::StatusCode,
@@ -79,6 +80,10 @@ async fn main() {
     let state = AppState {
         db,
         jwt: app_config.jwt().clone(),
+        resend_api_key: app_config.resend_api_key().to_string().clone(),
+        fe_url: app_config.frontend_url().to_string().clone(),
+        server_url: app_config.server_url().to_string().clone(),
+        http_client: Client::new(),
     };
 
     let cors = CorsLayer::new()

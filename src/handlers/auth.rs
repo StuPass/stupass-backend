@@ -2,7 +2,7 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
-use axum::{Json, extract::Query, extract::State};
+use axum::{Json, extract::Query, extract::State, response::Html};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{Duration, Utc};
 use jsonwebtoken::{EncodingKey, Header, encode};
@@ -15,6 +15,7 @@ use tokio::task;
 use tracing::{debug, error, info};
 use utoipa::{IntoParams, IntoResponses, ToSchema};
 use uuid::Uuid;
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
 use crate::entities::{
     auth_provider, credential, session, user
@@ -24,6 +25,7 @@ use crate::entities::prelude::{
 };
 use crate::errors::AppError;
 use crate::state::AppState;
+use crate::util::send_verification_email::send_verification_email;
 
 // ============================================================================
 // JWT Claims
@@ -34,6 +36,13 @@ pub struct Claims {
     pub sub: String, // user_id
     pub exp: usize,  // expiration (Unix timestamp)
     pub iat: usize,  // issued at (Unix timestamp)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EmailVerifyClaims {
+    pub sub: Uuid,
+    pub exp: usize,
+    pub purpose: String,
 }
 
 // ============================================================================
@@ -92,7 +101,7 @@ pub struct MessageResponse<T> {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RegisterRequest {
     pub username: String,
-    pub phone: String,
+    pub email: String,
     pub password: String,
     pub full_name: String,
     pub student_id: String,
@@ -118,7 +127,7 @@ pub struct RefreshRequest {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ForgotPasswordRequest {
-    pub phone: String,
+    pub email: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -220,7 +229,7 @@ pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<Json<RegisterResponse>, AppError> {
-    info!("Starting registration process for phone: {}", payload.phone);
+    info!("Starting registration process for email: {}", payload.email);
 
     let password_to_hash = payload.password.clone();
 
@@ -258,7 +267,6 @@ pub async fn register(
         id: Set(Uuid::new_v4()),
         username: Set(payload.username.clone()),
         email: Set(payload.email.clone()), 
-        phone: Set(payload.phone.clone()),
         full_name: Set(payload.full_name),
         school_id: Set(payload.school_id),
         student_id: Set(payload.student_id),
@@ -295,7 +303,7 @@ pub async fn register(
 
     let new_credential = credential::ActiveModel {
         id: Set(Uuid::new_v4()),
-        identifier: Set(payload.phone.clone()),
+        identifier: Set(payload.email.clone()),
         secret: Set(hashed_password),
         provider_id: Set(provider_id),
         user_id: Set(inserted_user.id),
@@ -317,12 +325,58 @@ pub async fn register(
     })?;
 
     info!("Successfully registered user ID: {}", inserted_user.id);
+    
+    // ==========================================
+    // Generate Verification Token & Send Email
+    // ==========================================
+    
+    // 1. Create a 24-hour expiration token
+    let expiration = Utc::now()
+        .checked_add_signed(chrono::Duration::hours(24))
+        .expect("valid timestamp")
+        .timestamp() as usize;
+
+    let claims = EmailVerifyClaims {
+        sub: inserted_user.id,
+        exp: expiration,
+        purpose: String::from("email_verification"),
+    };
+
+    let verify_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.jwt.secret.as_bytes()),
+    ).map_err(|e| {
+        error!("Failed to sign verification token: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    // 2. Build your deep link
+    let deep_link = format!("{}/auth/verify-email?token={}", state.server_url, verify_token);
+
+    // 3. Fire the email using our new Resend helper
+    let email_result = send_verification_email(
+        &state.http_client,
+        &state.resend_api_key,
+        &payload.email,
+        &deep_link,
+    ).await;
+
+    // 4. Handle email delivery failures gracefully
+    if let Err(e) = email_result {
+        error!("User {} registered, but Resend failed to send email: {:?}", inserted_user.id, e);
+        // We still return Ok() because the user IS in the database.
+        // The frontend can prompt them to "Resend Verification Email" later.
+        return Ok(Json(RegisterResponse {
+            user_id: inserted_user.id,
+            message: String::from("User registered, but we had trouble sending the verification email. Please try requesting a new one later."),
+        }));
+    }
 
     Ok(Json(RegisterResponse {
         user_id: inserted_user.id,
-        message: String::from("User registered successfully!"),
-    }))
-}
+        message: String::from("User registered successfully! Please check your email to verify your account."),
+    }))}
 
 /// Login with credentials
 ///
@@ -598,11 +652,105 @@ pub async fn reset_password(
     path = "/auth/verify-email",
     params(TokenQuery),
     responses(
-        (status = 200, body = VerifyEmailResponse),
-        (status = 400, body = BadRequest),
+        (status = 200, description = "HTML page showing success or failure"),
     ),
     tag = "auth"
 )]
-pub async fn verify_email(Query(_query): Query<TokenQuery>) -> Json<VerifyEmailResponse> {
-    todo!("Implement email verification and User.verified_at update")
+pub async fn verify_email(
+    State(state): State<AppState>, 
+    Query(query): Query<TokenQuery>,
+) -> Html<String> {
+    
+    // --- 1. HTML Template Helper ---
+    // This closure wraps our responses in a clean, mobile-friendly UI
+    let render_html = |title: &str, message: &str, is_success: bool| -> Html<String> {
+        let color = if is_success { "#4CAF50" } else { "#F44336" };
+        let icon = if is_success { "✅" } else { "❌" };
+        
+        Html(format!(
+            r#"
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {{ font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f9fafb; }}
+                    .card {{ background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 90%; }}
+                    h1 {{ color: {color}; font-size: 24px; margin-bottom: 10px; }}
+                    p {{ color: #4b5563; font-size: 16px; line-height: 1.5; }}
+                    .icon {{ font-size: 48px; margin-bottom: 16px; }}
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="icon">{icon}</div>
+                    <h1>{title}</h1>
+                    <p>{message}</p>
+                </div>
+            </body>
+            </html>
+            "#
+        ))
+    };
+
+    info!("Attempting to verify email with provided token");
+
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.leeway = 60; 
+
+    // --- 2. Decode and verify the JWT ---
+    let token_data = match decode::<EmailVerifyClaims>(
+        &query.token,
+        &DecodingKey::from_secret(state.jwt.secret.as_bytes()), 
+        &validation,
+    ) {
+        Ok(data) => data,
+        Err(e) => {
+            error!("Invalid or expired email verification token: {:?}", e);
+            return render_html("Verification Failed", "This link is invalid or has expired. Please request a new verification email from the app.", false);
+        }
+    };
+
+    // --- 3. Ensure the token is strictly for email verification ---
+    if token_data.claims.purpose != "email_verification" {
+        error!("Attempted to use invalid token purpose for email verification");
+        return render_html("Invalid Link", "This token cannot be used for email verification.", false);
+    }
+
+    let user_id = token_data.claims.sub;
+
+    // --- 4. Find the user in the database ---
+    let user_record = match user::Entity::find_by_id(user_id).one(&state.db).await {
+        Ok(Some(u)) => u,
+        Ok(None) => {
+            error!("User {} not found during verification", user_id);
+            return render_html("User Not Found", "We couldn't find an account associated with this link.", false);
+        }
+        Err(e) => {
+            error!("Database error finding user during verification: {:?}", e);
+            return render_html("Server Error", "Something went wrong on our end. Please try again later.", false);
+        }
+    };
+
+    // --- 5. Idempotency Check: Return success if already verified ---
+    if user_record.verified_at.is_some() {
+        info!("User {} is already verified", user_id);
+        return render_html("Already Verified", "Your email is already verified! You can safely close this window and log in to the StuPass app.", true);
+    }
+
+    // --- 6. Update the User's verification status ---
+    let mut active_user: user::ActiveModel = user_record.into();
+    active_user.verification_status = Set(String::from("verified"));
+    active_user.verified_at = Set(Some(Utc::now()));
+    active_user.updated_at = Set(Utc::now());
+
+    if let Err(e) = active_user.update(&state.db).await {
+        error!("Failed to update user verification status: {:?}", e);
+        return render_html("Server Error", "Failed to save your verification status. Please try again.", false);
+    }
+
+    info!("Successfully verified email for user {}", user_id);
+
+    // --- 7. Final Success Page ---
+    render_html("Email Verified!", "Your account is now active. You can safely close this browser window and return to the StuPass app to log in.", true)
 }

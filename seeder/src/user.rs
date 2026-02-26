@@ -218,7 +218,7 @@ fn finalize_user<R: fake::rand::Rng + Sized>(
         id: Set(partial.id),
         username: Set(partial.username),
         email: Set(partial.email),
-        phone: Set(partial.phone),
+        phone: Set(Some(partial.phone)),
         full_name: Set(partial.full_name),
         avatar_url: Set(None),
         bio: Set(partial.bio),
