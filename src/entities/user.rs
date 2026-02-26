@@ -26,12 +26,15 @@ pub struct Model {
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
     pub deleted_at: Option<DateTimeUtc>,
+    pub cometchat_auth_token: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(has_many = "super::credential::Entity")]
     Credential,
+    #[sea_orm(has_many = "super::listing::Entity")]
+    Listing,
     #[sea_orm(has_many = "super::password_reset_token::Entity")]
     PasswordResetToken,
     #[sea_orm(has_many = "super::session::Entity")]
@@ -41,6 +44,12 @@ pub enum Relation {
 impl Related<super::credential::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Credential.def()
+    }
+}
+
+impl Related<super::listing::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Listing.def()
     }
 }
 
