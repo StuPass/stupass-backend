@@ -8,7 +8,6 @@ pub enum AppError {
     InternalServerError,
     Unauthorized,
     BadRequest(String),
-    BodyParsingError(String),
 }
 
 pub fn internal_error<E: std::fmt::Display>(err: E) -> AppError {
@@ -28,10 +27,6 @@ impl IntoResponse for AppError {
                 String::from("Unauthorized"),
             ),
             Self::BadRequest(message) => (
-                StatusCode::BAD_REQUEST,
-                message,
-            ),
-            Self::BodyParsingError(message) => (
                 StatusCode::BAD_REQUEST,
                 format!("Bad request error: {message}"),
             ),
