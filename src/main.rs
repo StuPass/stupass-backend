@@ -11,6 +11,7 @@ use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use migration::{Migrator, MigratorTrait};
 use sea_orm::Database;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::prelude::*;
 use utoipa::OpenApi;
@@ -19,8 +20,9 @@ use utoipa_swagger_ui::SwaggerUi;
 use stupass_backend::config::config;
 use stupass_backend::handlers::auth;
 use stupass_backend::handlers::general;
-use stupass_backend::state::AppState;
 use stupass_backend::rate_limit::RateLimiter;
+use stupass_backend::services::email::ResendEmailService;
+use stupass_backend::state::AppState;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -78,13 +80,17 @@ async fn main() {
         return;
     }
 
+    let email_service = Arc::new(ResendEmailService::new(
+        Client::new(),
+        app_config.resend_api_key().to_string(),
+    ));
+
     let state = AppState {
         db,
         jwt: app_config.jwt().clone(),
-        resend_api_key: app_config.resend_api_key().to_string().clone(),
+        email_service,
         fe_url: app_config.frontend_url().to_string().clone(),
         server_url: app_config.server_url().to_string().clone(),
-        http_client: Client::new(),
         rate_limiter: RateLimiter::new(),
     };
 

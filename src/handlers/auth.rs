@@ -5,6 +5,7 @@ use argon2::{
 use axum::{Json, extract::Query, extract::State, response::Html};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{Duration, Utc};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use jsonwebtoken::{EncodingKey, Header, encode};
 use rand::RngCore;
 use sea_orm::entity::prelude::*;
@@ -15,18 +16,11 @@ use tokio::task;
 use tracing::{debug, error, info};
 use utoipa::{IntoParams, IntoResponses, ToSchema};
 use uuid::Uuid;
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 
-use crate::entities::{
-    auth_provider, credential, password_reset_token, session, user
-};
-use crate::entities::prelude::{
-    AuthProvider, Credential, PasswordResetToken, Session, User
-};
+use crate::entities::prelude::{AuthProvider, Credential, PasswordResetToken, Session, User};
+use crate::entities::{auth_provider, credential, password_reset_token, session, user};
 use crate::errors::AppError;
 use crate::state::AppState;
-use crate::util::send_password_reset_email::send_password_reset_email;
-use crate::util::send_verification_email::send_verification_email;
 
 // ============================================================================
 // JWT Claims
@@ -90,7 +84,7 @@ fn generate_access_token(
     })
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse<T> {
     pub message: T,
 }
@@ -148,47 +142,47 @@ pub struct TokenQuery {
 // Response DTOs
 // ============================================================================
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AuthTokens {
     pub access_token: String,
     pub refresh_token: String,
     pub expires_in: i64,
 }
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 201)]
 pub struct RegisterResponse {
     pub user_id: Uuid,
     pub message: String,
 }
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]
 pub struct LoginResponse {
     #[serde(flatten)]
     pub tokens: AuthTokens,
 }
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]
 pub struct LogoutResponse(pub MessageResponse<String>);
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]
 pub struct RefreshResponse {
     #[serde(flatten)]
     pub tokens: AuthTokens,
 }
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]
 pub struct ForgotPasswordResponse(pub MessageResponse<String>);
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]
 pub struct ResetPasswordResponse(pub MessageResponse<String>);
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]
 pub struct VerifyEmailResponse(pub MessageResponse<String>);
 
@@ -196,15 +190,15 @@ pub struct VerifyEmailResponse(pub MessageResponse<String>);
 // Error Responses
 // ============================================================================
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 400)]
 pub struct BadRequest(pub MessageResponse<String>);
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 401)]
 pub struct Unauthorized(pub MessageResponse<String>);
 
-#[derive(Debug, Serialize, ToSchema, IntoResponses)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 409)]
 pub struct Conflict(pub MessageResponse<String>);
 
@@ -267,7 +261,7 @@ pub async fn register(
     let new_user = user::ActiveModel {
         id: Set(Uuid::new_v4()),
         username: Set(payload.username.clone()),
-        email: Set(payload.email.clone()), 
+        email: Set(payload.email.clone()),
         full_name: Set(payload.full_name),
         school_id: Set(payload.school_id),
         student_id: Set(payload.student_id),
@@ -326,11 +320,11 @@ pub async fn register(
     })?;
 
     info!("Successfully registered user ID: {}", inserted_user.id);
-    
+
     // ==========================================
     // Generate Verification Token & Send Email
     // ==========================================
-    
+
     // 1. Create a 24-hour expiration token
     let expiration = Utc::now()
         .checked_add_signed(chrono::Duration::hours(24))
@@ -347,37 +341,47 @@ pub async fn register(
         &Header::default(),
         &claims,
         &EncodingKey::from_secret(state.jwt.secret.as_bytes()),
-    ).map_err(|e| {
+    )
+    .map_err(|e| {
         error!("Failed to sign verification token: {:?}", e);
         AppError::InternalServerError
     })?;
 
     // 2. Build your deep link
-    let deep_link = format!("{}/auth/verify-email?token={}", state.server_url, verify_token);
+    let deep_link = format!(
+        "{}/auth/verify-email?token={}",
+        state.server_url, verify_token
+    );
 
-    // 3. Fire the email using our new Resend helper
-    let email_result = send_verification_email(
-        &state.http_client,
-        &state.resend_api_key,
-        &payload.email,
-        &deep_link,
-    ).await;
+    // 3. Fire the email using the email service
+    let email_result = state
+        .email_service
+        .send_verification_email(&payload.email, &deep_link)
+        .await;
 
     // 4. Handle email delivery failures gracefully
     if let Err(e) = email_result {
-        error!("User {} registered, but Resend failed to send email: {:?}", inserted_user.id, e);
+        error!(
+            "User {} registered, but Resend failed to send email: {:?}",
+            inserted_user.id, e
+        );
         // We still return Ok() because the user IS in the database.
         // The frontend can prompt them to "Resend Verification Email" later.
         return Ok(Json(RegisterResponse {
             user_id: inserted_user.id,
-            message: String::from("User registered, but we had trouble sending the verification email. Please try requesting a new one later."),
+            message: String::from(
+                "User registered, but we had trouble sending the verification email. Please try requesting a new one later.",
+            ),
         }));
     }
 
     Ok(Json(RegisterResponse {
         user_id: inserted_user.id,
-        message: String::from("User registered successfully! Please check your email to verify your account."),
-    }))}
+        message: String::from(
+            "User registered successfully! Please check your email to verify your account.",
+        ),
+    }))
+}
 
 /// Login with credentials
 ///
@@ -505,8 +509,10 @@ pub async fn logout(
     State(state): State<AppState>,
     Json(payload): Json<LogoutRequest>,
 ) -> Result<Json<LogoutResponse>, AppError> {
-
-    let token_str = payload.refresh_token.as_deref().ok_or(AppError::Unauthorized)?;
+    let token_str = payload
+        .refresh_token
+        .as_deref()
+        .ok_or(AppError::Unauthorized)?;
     let incoming_hash = hash_token(token_str);
 
     // Find and delete the session.
@@ -523,9 +529,9 @@ pub async fn logout(
         debug!("Logout requested for token that doesn't exist. Treating as success.");
     }
 
-    Ok(Json(LogoutResponse(
-        MessageResponse{ message: String::from("Successfully logged out") }
-    )))
+    Ok(Json(LogoutResponse(MessageResponse {
+        message: String::from("Successfully logged out"),
+    })))
 }
 
 /// Refresh access token
@@ -545,7 +551,6 @@ pub async fn refresh(
     State(state): State<AppState>,
     Json(payload): Json<RefreshRequest>,
 ) -> Result<Json<RefreshResponse>, AppError> {
-
     let incoming_hash = hash_token(&payload.refresh_token);
 
     // Look up the session in the database
@@ -567,18 +572,18 @@ pub async fn refresh(
     // Check if the session has expired
     if session_record.expires_at < now {
         info!("Refresh token expired for user: {}", session_record.user_id);
-        
+
         // Delete the expired session
         let _ = session_record.clone().delete(&state.db).await;
-        
+
         return Err(AppError::Unauthorized);
     }
 
     // Generate the new Access Token (JWT)
     let new_access_token = generate_access_token(
-        session_record.user_id, 
-        &state.jwt.secret, 
-        state.jwt.access_token_expiry
+        session_record.user_id,
+        &state.jwt.secret,
+        state.jwt.access_token_expiry,
     )?;
 
     // Generate a new Refresh Token (Token Rotation)
@@ -643,9 +648,13 @@ pub async fn forgot_password(
         }));
     }
 
-    let success_response = || Json(ForgotPasswordResponse(MessageResponse {
-        message: String::from("If an account with that email exists, we've sent a password reset link."),
-    }));
+    let success_response = || {
+        Json(ForgotPasswordResponse(MessageResponse {
+            message: String::from(
+                "If an account with that email exists, we've sent a password reset link.",
+            ),
+        }))
+    };
 
     // --- 1. Find user by email ---
     let user_record = User::find()
@@ -657,7 +666,10 @@ pub async fn forgot_password(
     let user = match user_record {
         Ok(Some(u)) => u,
         Ok(None) => {
-            info!("No user found with email: {} - returning success anyway", payload.email);
+            info!(
+                "No user found with email: {} - returning success anyway",
+                payload.email
+            );
             return success_response();
         }
         Err(e) => {
@@ -693,15 +705,16 @@ pub async fn forgot_password(
     let reset_link = format!("{}/reset-password?token={}", state.fe_url, reset_token);
 
     // --- 6. Send password reset email ---
-    let email_result = send_password_reset_email(
-        &state.http_client,
-        &state.resend_api_key,
-        &payload.email,
-        &reset_link,
-    ).await;
+    let email_result = state
+        .email_service
+        .send_password_reset_email(&payload.email, &reset_link)
+        .await;
 
     if let Err(e) = email_result {
-        error!("Failed to send password reset email to {}: {:?}", payload.email, e);
+        error!(
+            "Failed to send password reset email to {}: {:?}",
+            payload.email, e
+        );
         // Still return success to prevent enumeration
     }
 
@@ -759,14 +772,18 @@ pub async fn reset_password(
     let now = Utc::now();
     if reset_record.expires_at < now {
         info!("Password reset token has expired");
-        return Err(AppError::BadRequest(String::from("Reset token has expired")));
+        return Err(AppError::BadRequest(String::from(
+            "Reset token has expired",
+        )));
     }
 
     // --- 5. Validate token: check if already used ---
     // Now safe from race condition since we're in a transaction
     if reset_record.used_at.is_some() {
         info!("Password reset token already used");
-        return Err(AppError::BadRequest(String::from("Reset token has already been used")));
+        return Err(AppError::BadRequest(String::from(
+            "Reset token has already been used",
+        )));
     }
 
     let user_id = reset_record.user_id;
@@ -848,7 +865,10 @@ pub async fn reset_password(
             AppError::InternalServerError
         })?;
 
-    info!("Invalidated {} sessions for user {}", delete_result.rows_affected, user_id);
+    info!(
+        "Invalidated {} sessions for user {}",
+        delete_result.rows_affected, user_id
+    );
 
     // --- 11. Commit transaction ---
     txn.commit().await.map_err(|e| {
@@ -859,7 +879,9 @@ pub async fn reset_password(
     info!("Successfully reset password for user {}", user_id);
 
     Ok(Json(ResetPasswordResponse(MessageResponse {
-        message: String::from("Password has been reset successfully. Please log in with your new password."),
+        message: String::from(
+            "Password has been reset successfully. Please log in with your new password.",
+        ),
     })))
 }
 
@@ -876,16 +898,15 @@ pub async fn reset_password(
     tag = "auth"
 )]
 pub async fn verify_email(
-    State(state): State<AppState>, 
+    State(state): State<AppState>,
     Query(query): Query<TokenQuery>,
 ) -> Html<String> {
-    
     // --- 1. HTML Template Helper ---
     // This closure wraps our responses in a clean, mobile-friendly UI
     let render_html = |title: &str, message: &str, is_success: bool| -> Html<String> {
         let color = if is_success { "#4CAF50" } else { "#F44336" };
         let icon = if is_success { "✅" } else { "❌" };
-        
+
         Html(format!(
             r#"
             <!DOCTYPE html>
@@ -915,25 +936,33 @@ pub async fn verify_email(
     info!("Attempting to verify email with provided token");
 
     let mut validation = Validation::new(Algorithm::HS256);
-    validation.leeway = 60; 
+    validation.leeway = 60;
 
     // --- 2. Decode and verify the JWT ---
     let token_data = match decode::<EmailVerifyClaims>(
         &query.token,
-        &DecodingKey::from_secret(state.jwt.secret.as_bytes()), 
+        &DecodingKey::from_secret(state.jwt.secret.as_bytes()),
         &validation,
     ) {
         Ok(data) => data,
         Err(e) => {
             error!("Invalid or expired email verification token: {:?}", e);
-            return render_html("Verification Failed", "This link is invalid or has expired. Please request a new verification email from the app.", false);
+            return render_html(
+                "Verification Failed",
+                "This link is invalid or has expired. Please request a new verification email from the app.",
+                false,
+            );
         }
     };
 
     // --- 3. Ensure the token is strictly for email verification ---
     if token_data.claims.purpose != "email_verification" {
         error!("Attempted to use invalid token purpose for email verification");
-        return render_html("Invalid Link", "This token cannot be used for email verification.", false);
+        return render_html(
+            "Invalid Link",
+            "This token cannot be used for email verification.",
+            false,
+        );
     }
 
     let user_id = token_data.claims.sub;
@@ -943,18 +972,30 @@ pub async fn verify_email(
         Ok(Some(u)) => u,
         Ok(None) => {
             error!("User {} not found during verification", user_id);
-            return render_html("User Not Found", "We couldn't find an account associated with this link.", false);
+            return render_html(
+                "User Not Found",
+                "We couldn't find an account associated with this link.",
+                false,
+            );
         }
         Err(e) => {
             error!("Database error finding user during verification: {:?}", e);
-            return render_html("Server Error", "Something went wrong on our end. Please try again later.", false);
+            return render_html(
+                "Server Error",
+                "Something went wrong on our end. Please try again later.",
+                false,
+            );
         }
     };
 
     // --- 5. Idempotency Check: Return success if already verified ---
     if user_record.verified_at.is_some() {
         info!("User {} is already verified", user_id);
-        return render_html("Already Verified", "Your email is already verified! You can safely close this window and log in to the StuPass app.", true);
+        return render_html(
+            "Already Verified",
+            "Your email is already verified! You can safely close this window and log in to the StuPass app.",
+            true,
+        );
     }
 
     // --- 6. Update the User's verification status ---
@@ -965,11 +1006,19 @@ pub async fn verify_email(
 
     if let Err(e) = active_user.update(&state.db).await {
         error!("Failed to update user verification status: {:?}", e);
-        return render_html("Server Error", "Failed to save your verification status. Please try again.", false);
+        return render_html(
+            "Server Error",
+            "Failed to save your verification status. Please try again.",
+            false,
+        );
     }
 
     info!("Successfully verified email for user {}", user_id);
 
     // --- 7. Final Success Page ---
-    render_html("Email Verified!", "Your account is now active. You can safely close this browser window and return to the StuPass app to log in.", true)
+    render_html(
+        "Email Verified!",
+        "Your account is now active. You can safely close this browser window and return to the StuPass app to log in.",
+        true,
+    )
 }
