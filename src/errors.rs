@@ -7,7 +7,9 @@ use serde_json::json;
 pub enum AppError {
     InternalServerError,
     Unauthorized,
+    NotFound,
     BadRequest(String),
+    Conflict(String),
 }
 
 pub fn internal_error<E: std::fmt::Display>(err: E) -> AppError {
@@ -26,9 +28,17 @@ impl IntoResponse for AppError {
                 StatusCode::UNAUTHORIZED,
                 String::from("Unauthorized"),
             ),
+            Self::NotFound => (
+                StatusCode::NOT_FOUND,
+                String::from("Not found"),
+            ),
             Self::BadRequest(message) => (
                 StatusCode::BAD_REQUEST,
                 format!("Bad request error: {message}"),
+            ),
+            Self::Conflict(message) => (
+                StatusCode::CONFLICT,
+                format!("Conflict: {message}"),
             ),
         };
         (status, Json(json!({ "message": err_msg }))).into_response()
