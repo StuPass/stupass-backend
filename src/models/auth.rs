@@ -42,6 +42,20 @@ pub struct RegisterRequest {
     pub school_id: String,
 }
 
+// #[derive(Debug, Deserialize, ToSchema)]
+// pub struct ResendVerificationRequest {
+//     pub email: String,
+// }
+
+// #[derive(Debug, Deserialize, ToSchema)]
+// pub struct CompleteProfileRequest {
+//     pub username: String,
+//     pub full_name: String,
+//     pub student_id: String,
+//     pub school_id: String,
+//     pub phone: Option<String>,
+// }
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct LoginRequest {
     pub identifier: String,
@@ -101,6 +115,19 @@ impl IntoResponse for RegisterResponse {
     }
 }
 
+// #[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
+// #[response(status = 200)]
+// pub struct CheckStatusResponse {
+//     pub verification_status: String,
+//     pub profile_completed: bool,
+// }
+
+// impl IntoResponse for CheckStatusResponse {
+//     fn into_response(self) -> Response {
+//         Json(self).into_response()
+//     }
+// }
+
 #[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]
 pub struct LoginResponse {
@@ -109,16 +136,6 @@ pub struct LoginResponse {
 }
 
 impl IntoResponse for LoginResponse {
-    fn into_response(self) -> Response {
-        Json(self).into_response()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
-#[response(status = 200)]
-pub struct LogoutResponse(pub MessageResponse<String>);
-
-impl IntoResponse for LogoutResponse {
     fn into_response(self) -> Response {
         Json(self).into_response()
     }
@@ -137,35 +154,28 @@ impl IntoResponse for RefreshResponse {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
-#[response(status = 200)]
-pub struct ForgotPasswordResponse(pub MessageResponse<String>);
+// A generic wrapper macro to easily create 200 OK responses with just a message
+macro_rules! impl_message_response {
+    ($name:ident) => {
+        #[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
+        #[response(status = 200)]
+        pub struct $name(pub MessageResponse<String>);
 
-impl IntoResponse for ForgotPasswordResponse {
-    fn into_response(self) -> Response {
-        Json(self).into_response()
-    }
+        impl IntoResponse for $name {
+            fn into_response(self) -> Response {
+                Json(self.0).into_response()
+            }
+        }
+    };
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
-#[response(status = 200)]
-pub struct ResetPasswordResponse(pub MessageResponse<String>);
-
-impl IntoResponse for ResetPasswordResponse {
-    fn into_response(self) -> Response {
-        Json(self).into_response()
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
-#[response(status = 200)]
-pub struct VerifyEmailResponse(pub MessageResponse<String>);
-
-impl IntoResponse for VerifyEmailResponse {
-    fn into_response(self) -> Response {
-        Json(self).into_response()
-    }
-}
+// This macro drastically reduces boilerplate for all your simple success responses!
+impl_message_response!(LogoutResponse);
+impl_message_response!(ForgotPasswordResponse);
+impl_message_response!(ResetPasswordResponse);
+impl_message_response!(VerifyEmailResponse);
+impl_message_response!(CompleteProfileResponse);
+impl_message_response!(ResendVerificationResponse);
 
 // ============================================================================
 // Error Responses
