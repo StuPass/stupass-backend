@@ -68,7 +68,7 @@ async fn init_config() -> Config {
         port: env::var("PORT")
             .unwrap_or_else(|_| String::from("3000"))
             .parse::<u16>()
-            .unwrap(),
+            .expect("PORT must be a valid u16 number"),
         frontend_url: env::var("FRONTEND_URL").unwrap_or_else(|_| String::from("stupass://")),
         server_url: env::var("SERVER_URL").expect("SERVER_URL must be set"),
     };
