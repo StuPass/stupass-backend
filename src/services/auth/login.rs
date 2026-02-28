@@ -35,11 +35,11 @@ pub async fn authenticate_user<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during auth provider lookup: {:?}", e);
-            AppError::InternalServerError
+            AppError::InternalServerError(e.to_string())
         })?
         .ok_or_else(|| {
             error!("Auth provider 'Password' not found in database");
-            AppError::InternalServerError
+            AppError::InternalServerError(String::from("Auth provider 'Password' not found"))
         })?
         .id;
 
@@ -51,7 +51,7 @@ pub async fn authenticate_user<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during credential lookup: {:?}", e);
-            AppError::InternalServerError
+            AppError::InternalServerError(e.to_string())
         })?
         .ok_or_else(|| {
             info!("No credential found for identifier: {}", &identifier);
@@ -68,14 +68,17 @@ pub async fn authenticate_user<D: AuthDeps>(
                 .verify_password(password.as_bytes(), &parsed_hash)
                 .is_ok()
         } else {
-            error!("Malformed password hash found for credential ID: {}", credential.id);
+            error!(
+                "Malformed password hash found for credential ID: {}",
+                credential.id
+            );
             false
         }
     })
     .await
     .map_err(|e| {
         error!("Thread pool error during password verification: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     if !verify_result {
@@ -108,7 +111,7 @@ pub async fn authenticate_user<D: AuthDeps>(
 
     new_session.insert(deps.db()).await.map_err(|e| {
         error!("Failed to create session: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     Ok(LoginResponse {

@@ -16,11 +16,7 @@ pub trait EmailService: Send + Sync {
     ) -> Result<(), AppError>;
 
     /// Send a password reset email with the provided reset link
-    async fn send_password_reset_email(
-        &self,
-        to: &str,
-        reset_link: &str,
-    ) -> Result<(), AppError>;
+    async fn send_password_reset_email(&self, to: &str, reset_link: &str) -> Result<(), AppError>;
 }
 
 /// Production email service using Resend API
@@ -89,24 +85,22 @@ impl EmailService for ResendEmailService {
             .await
             .map_err(|e| {
                 error!("Failed to reach Resend API: {:?}", e);
-                AppError::InternalServerError
+                AppError::InternalServerError(e.to_string())
             })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
             error!("Resend API rejected the email request: {}", error_text);
-            return Err(AppError::InternalServerError);
+            return Err(AppError::InternalServerError(String::from(
+                "Failed to send verification email",
+            )));
         }
 
         info!("Successfully sent verification email via Resend to {}", to);
         Ok(())
     }
 
-    async fn send_password_reset_email(
-        &self,
-        to: &str,
-        reset_link: &str,
-    ) -> Result<(), AppError> {
+    async fn send_password_reset_email(&self, to: &str, reset_link: &str) -> Result<(), AppError> {
         let resend_url = "https://api.resend.com/emails";
 
         let html_content = format!(
@@ -145,7 +139,7 @@ impl EmailService for ResendEmailService {
             .await
             .map_err(|e| {
                 error!("Failed to reach Resend API: {:?}", e);
-                AppError::InternalServerError
+                AppError::InternalServerError(e.to_string())
             })?;
 
         if !response.status().is_success() {
@@ -154,7 +148,9 @@ impl EmailService for ResendEmailService {
                 "Resend API rejected the password reset email request: {}",
                 error_text
             );
-            return Err(AppError::InternalServerError);
+            return Err(AppError::InternalServerError(String::from(
+                "Failed to send password reset email",
+            )));
         }
 
         info!(

@@ -3,8 +3,8 @@ use tokio::sync::OnceCell;
 
 #[derive(Debug)]
 struct ServerConfig {
-    host: String,
-    port: u16,
+    listen_host: String,
+    listen_port: u16,
     frontend_url: String,
     server_url: String,
 }
@@ -34,12 +34,12 @@ impl Config {
         &self.db.url
     }
 
-    pub fn server_host(&self) -> &str {
-        &self.server.host
+    pub fn listen_host(&self) -> &str {
+        &self.server.listen_host
     }
 
-    pub fn server_port(&self) -> u16 {
-        self.server.port
+    pub fn listen_port(&self) -> u16 {
+        self.server.listen_port
     }
 
     pub fn jwt(&self) -> &JwtConfig {
@@ -64,11 +64,11 @@ pub static CONFIG: OnceCell<Config> = OnceCell::const_new();
 async fn init_config() -> Config {
     // Create a ServerConfig instance with default values or values from environment variables
     let server_config = ServerConfig {
-        host: env::var("HOST").unwrap_or_else(|_| String::from("0.0.0.0")),
-        port: env::var("PORT")
+        listen_host: env::var("LISTEN_HOST").unwrap_or_else(|_| String::from("0.0.0.0")),
+        listen_port: env::var("LISTEN_PORT")
             .unwrap_or_else(|_| String::from("3000"))
             .parse::<u16>()
-            .expect("PORT must be a valid u16 number"),
+            .expect("LISTEN_PORT must be a valid u16 number"),
         frontend_url: env::var("FRONTEND_URL").unwrap_or_else(|_| String::from("stupass://")),
         server_url: env::var("SERVER_URL").expect("SERVER_URL must be set"),
     };

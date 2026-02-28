@@ -46,18 +46,18 @@ pub async fn register_user<D: AuthDeps>(
     .await
     .map_err(|e| {
         error!("Thread pool error during password hashing: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?
     .map_err(|e| {
         error!("Failed to hash password: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     debug!("Password hashed successfully. Initiating database transaction.");
 
     let txn = deps.db().begin().await.map_err(|e| {
         error!("Failed to begin txn: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     debug!("Inserting User record...");
@@ -80,7 +80,7 @@ pub async fn register_user<D: AuthDeps>(
 
     let inserted_user = new_user.insert(&txn).await.map_err(|e| {
         error!("Failed to insert user: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     debug!(
@@ -94,11 +94,11 @@ pub async fn register_user<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during auth provider lookup: {:?}", e);
-            AppError::InternalServerError
+            AppError::InternalServerError(e.to_string())
         })?
         .ok_or_else(|| {
             error!("Auth provider 'Password' not found in database");
-            AppError::InternalServerError
+            AppError::InternalServerError(String::from("Auth provider 'Password' not found"))
         })?
         .id;
 
@@ -115,14 +115,14 @@ pub async fn register_user<D: AuthDeps>(
 
     new_credential.insert(&txn).await.map_err(|e| {
         error!("Failed to insert credential: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     debug!("Credential record created. Committing transaction.");
 
     txn.commit().await.map_err(|e| {
         error!("Failed to commit txn: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     info!("Successfully registered user ID: {}", inserted_user.id);
@@ -150,7 +150,7 @@ pub async fn register_user<D: AuthDeps>(
     )
     .map_err(|e| {
         error!("Failed to sign verification token: {:?}", e);
-        AppError::InternalServerError
+        AppError::InternalServerError(e.to_string())
     })?;
 
     // 2. Build your deep link
