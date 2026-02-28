@@ -63,11 +63,14 @@ pub async fn authenticate_user<D: AuthDeps>(
 
     // Verify payload password against stored hash
     let verify_result: bool = task::spawn_blocking(move || {
-        let parsed_hash = PasswordHash::new(&credential.secret).unwrap();
-
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed_hash)
-            .is_ok()
+        if let Ok(parsed_hash) = PasswordHash::new(&credential.secret) {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .is_ok()
+        } else {
+            error!("Malformed password hash found for credential ID: {}", credential.id);
+            false
+        }
     })
     .await
     .map_err(|e| {
