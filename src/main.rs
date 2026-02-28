@@ -158,8 +158,8 @@ async fn main() {
         .merge(SwaggerUi::new("/").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .layer(cors);
 
-    let host = app_config.server_host();
-    let port = app_config.server_port();
+    let host = app_config.listen_host();
+    let port = app_config.listen_port();
     let address = format!("{}:{}", host, port);
     let socket_addr: SocketAddr = address.parse().expect("Unable to parse socket address");
 
