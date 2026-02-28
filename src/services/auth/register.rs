@@ -79,6 +79,9 @@ pub async fn register_user<D: AuthDeps>(
 
     let inserted_user = new_user.insert(&txn).await.map_err(|e| {
         error!("Failed to insert user: {:?}", e);
+        if e.to_string().to_lowercase().contains("unique constraint") {
+            return AppError::Conflict("A user with this email already exists.".to_string());
+        }
         AppError::InternalServerError
     })?;
 
