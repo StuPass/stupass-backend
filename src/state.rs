@@ -4,13 +4,14 @@ use sea_orm::DatabaseConnection;
 
 use crate::config::JwtConfig;
 use crate::rate_limit::RateLimiter;
-use crate::services::email::EmailService;
+use crate::services::{AuthService, EmailService};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
     pub jwt: JwtConfig,
     pub email_service: Arc<dyn EmailService>,
+    pub auth_service: Arc<dyn AuthService>,
     pub fe_url: String,
     pub server_url: String,
     pub rate_limiter: RateLimiter,
@@ -22,6 +23,7 @@ pub struct AppStateBuilder {
     db: Option<DatabaseConnection>,
     jwt: Option<JwtConfig>,
     email_service: Option<Arc<dyn EmailService>>,
+    auth_service: Option<Arc<dyn AuthService>>,
     fe_url: Option<String>,
     server_url: Option<String>,
     rate_limiter: Option<RateLimiter>,
@@ -40,6 +42,11 @@ impl AppStateBuilder {
 
     pub fn email_service(mut self, service: Arc<dyn EmailService>) -> Self {
         self.email_service = Some(service);
+        self
+    }
+
+    pub fn auth_service(mut self, service: Arc<dyn AuthService>) -> Self {
+        self.auth_service = Some(service);
         self
     }
 
@@ -63,6 +70,7 @@ impl AppStateBuilder {
             db: self.db.expect("db is required"),
             jwt: self.jwt.expect("jwt is required"),
             email_service: self.email_service.expect("email_service is required"),
+            auth_service: self.auth_service.expect("auth_service is required"),
             fe_url: self.fe_url.unwrap_or_default(),
             server_url: self.server_url.unwrap_or_default(),
             rate_limiter: self.rate_limiter.unwrap_or_default(),

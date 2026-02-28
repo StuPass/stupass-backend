@@ -1,4 +1,3 @@
-use reqwest::Client;
 use axum::{
     Router,
     http::StatusCode,
@@ -9,6 +8,7 @@ use dotenvy::dotenv;
 use http::Method;
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use migration::{Migrator, MigratorTrait};
+use reqwest::Client;
 use sea_orm::Database;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -20,8 +20,9 @@ use utoipa_swagger_ui::SwaggerUi;
 use stupass_backend::config::config;
 use stupass_backend::handlers::auth;
 use stupass_backend::handlers::general;
+use stupass_backend::models;
 use stupass_backend::rate_limit::RateLimiter;
-use stupass_backend::services::email::ResendEmailService;
+use stupass_backend::services::{auth::service::AuthServiceImpl, email::ResendEmailService};
 use stupass_backend::state::AppState;
 
 #[derive(OpenApi)]
@@ -37,24 +38,24 @@ use stupass_backend::state::AppState;
         auth::verify_email,
     ),
     components(schemas(
-        auth::RegisterRequest,
-        auth::LoginRequest,
-        auth::LogoutRequest,
-        auth::RefreshRequest,
-        auth::ForgotPasswordRequest,
-        auth::ResetPasswordRequest,
-        auth::TokenQuery,
-        auth::AuthTokens,
-        auth::RegisterResponse,
-        auth::LoginResponse,
-        auth::LogoutResponse,
-        auth::RefreshResponse,
-        auth::ForgotPasswordResponse,
-        auth::ResetPasswordResponse,
-        auth::VerifyEmailResponse,
-        auth::BadRequest,
-        auth::Unauthorized,
-        auth::Conflict,
+        models::auth::RegisterRequest,
+        models::auth::LoginRequest,
+        models::auth::LogoutRequest,
+        models::auth::RefreshRequest,
+        models::auth::ForgotPasswordRequest,
+        models::auth::ResetPasswordRequest,
+        models::auth::TokenQuery,
+        models::auth::AuthTokens,
+        models::auth::RegisterResponse,
+        models::auth::LoginResponse,
+        models::auth::LogoutResponse,
+        models::auth::RefreshResponse,
+        models::auth::ForgotPasswordResponse,
+        models::auth::ResetPasswordResponse,
+        models::auth::VerifyEmailResponse,
+        models::auth::BadRequest,
+        models::auth::Unauthorized,
+        models::auth::Conflict,
     )),
     tags(
         (name = "general", description = "General endpoints"),
@@ -85,10 +86,13 @@ async fn main() {
         app_config.resend_api_key().to_string(),
     ));
 
+    let auth_service = Arc::new(AuthServiceImpl);
+
     let state = AppState {
         db,
         jwt: app_config.jwt().clone(),
         email_service,
+        auth_service,
         fe_url: app_config.frontend_url().to_string().clone(),
         server_url: app_config.server_url().to_string().clone(),
         rate_limiter: RateLimiter::new(),
