@@ -1,4 +1,10 @@
-use axum::{Json, extract::Query, extract::State, response::Html};
+use axum::{
+    Json,
+    extract::{Query, State},
+    // extract::{Extension, Path}
+    response::Html,
+};
+// use uuid::Uuid;
 
 use crate::errors::AppError;
 use crate::models::auth::*;
@@ -25,6 +31,71 @@ pub async fn register(
 ) -> Result<RegisterResponse, AppError> {
     register::register_user(&auth_state, payload).await
 }
+
+// /// Check user verification status
+// ///
+// /// Used by the frontend for short polling to determine if the user has clicked the email verification link.
+// #[utoipa::path(
+//     get,
+//     path = "/auth/check-status/{user_id}",
+//     params(
+//         ("user_id" = Uuid, Path, description = "The UUID of the user to check")
+//     ),
+//     responses(
+//         (status = 200, body = CheckStatusResponse),
+//         (status = 400, body = BadRequest),
+//     ),
+//     tag = "auth",
+// )]
+// pub async fn check_status(
+//     State(auth_state): State<AuthState>,
+//     Path(user_id): Path<Uuid>,
+// ) -> Result<CheckStatusResponse, AppError> {
+//     register::check_status(&auth_state, user_id).await
+// }
+
+// /// Resend verification email
+// ///
+// /// Generates a new JWT verification token and resends the verification email.
+// #[utoipa::path(
+//     post,
+//     path = "/auth/resend-verification",
+//     request_body = ResendVerificationRequest,
+//     responses((status = 200, body = ResendVerificationResponse)),
+//     tag = "auth",
+// )]
+// pub async fn resend_verification(
+//     State(auth_state): State<AuthState>,
+//     Json(payload): Json<ResendVerificationRequest>,
+// ) -> Result<ResendVerificationResponse, AppError> {
+//     register::resend_verification(&auth_state, payload).await
+// }
+
+// /// Complete user profile
+// ///
+// /// Allows an authenticated user to overwrite their temporary onboarding placeholders with their actual data.
+// #[utoipa::path(
+//     post,
+//     path = "/auth/complete-profile",
+//     request_body = CompleteProfileRequest,
+//     responses(
+//         (status = 200, body = CompleteProfileResponse),
+//         (status = 400, body = BadRequest),
+//         (status = 401, body = Unauthorized),
+//         (status = 409, body = Conflict),
+//     ),
+//     security(
+//         ("bearer_auth" = [])
+//     ),
+//     tag = "auth",
+// )]
+// pub async fn complete_profile(
+//     Extension(user_id): Extension<Uuid>, // Injected by your auth_middleware!
+//     State(auth_state): State<AuthState>,
+//     Json(payload): Json<CompleteProfileRequest>,
+// ) -> Result<CompleteProfileResponse, AppError> {
+//     register::complete_profile(&auth_state, user_id, payload).await
+// }
 
 /// Login with credentials
 ///
