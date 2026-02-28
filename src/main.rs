@@ -17,12 +17,12 @@ use tracing_subscriber::prelude::*;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use stupass_backend::config::config;
+use stupass_backend::config::build_config;
 use stupass_backend::handlers::auth;
 use stupass_backend::handlers::general;
 use stupass_backend::models;
 use stupass_backend::rate_limit::RateLimiter;
-use stupass_backend::services::{auth::service::AuthServiceImpl, email::ResendEmailService};
+use stupass_backend::services::email::ResendEmailService;
 use stupass_backend::state::AppState;
 
 #[derive(OpenApi)]
@@ -70,7 +70,7 @@ async fn main() {
 
     init_tracing();
 
-    let app_config = config().await;
+    let app_config = build_config().await;
 
     let db = Database::connect(app_config.db_url())
         .await
@@ -86,16 +86,15 @@ async fn main() {
         app_config.resend_api_key().to_string(),
     ));
 
-    let auth_service = Arc::new(AuthServiceImpl);
+    let rate_limiter = RateLimiter::new();
 
     let state = AppState {
         db,
         jwt: app_config.jwt().clone(),
         email_service,
-        auth_service,
-        fe_url: app_config.frontend_url().to_string().clone(),
-        server_url: app_config.server_url().to_string().clone(),
-        rate_limiter: RateLimiter::new(),
+        fe_url: app_config.frontend_url().to_string(),
+        server_url: app_config.server_url().to_string(),
+        rate_limiter,
     };
 
     let cors = CorsLayer::new()

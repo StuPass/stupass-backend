@@ -1,20 +1,70 @@
 use std::sync::Arc;
 
+use axum::extract::FromRef;
 use sea_orm::DatabaseConnection;
 
 use crate::config::JwtConfig;
 use crate::rate_limit::RateLimiter;
-use crate::services::{AuthService, EmailService};
+use crate::services::EmailService;
+use crate::services::auth::AuthDeps;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
     pub jwt: JwtConfig,
     pub email_service: Arc<dyn EmailService>,
-    pub auth_service: Arc<dyn AuthService>,
     pub fe_url: String,
     pub server_url: String,
     pub rate_limiter: RateLimiter,
+}
+
+#[derive(Clone)]
+pub struct AuthState {
+    pub db: DatabaseConnection,
+    pub jwt: JwtConfig,
+    pub email_service: Arc<dyn EmailService>,
+    pub fe_url: String,
+    pub server_url: String,
+    pub rate_limiter: RateLimiter,
+}
+
+impl AuthDeps for AuthState {
+    fn db(&self) -> &DatabaseConnection {
+        &self.db
+    }
+
+    fn jwt(&self) -> &JwtConfig {
+        &self.jwt
+    }
+
+    fn email_service(&self) -> &dyn EmailService {
+        self.email_service.as_ref()
+    }
+
+    fn rate_limiter(&self) -> &RateLimiter {
+        &self.rate_limiter
+    }
+
+    fn fe_url(&self) -> &str {
+        &self.fe_url
+    }
+
+    fn server_url(&self) -> &str {
+        &self.server_url
+    }
+}
+
+impl FromRef<AppState> for AuthState {
+    fn from_ref(app_state: &AppState) -> Self {
+        Self {
+            db: app_state.db.clone(),
+            jwt: app_state.jwt.clone(),
+            email_service: app_state.email_service.clone(),
+            fe_url: app_state.fe_url.clone(),
+            server_url: app_state.server_url.clone(),
+            rate_limiter: app_state.rate_limiter.clone(),
+        }
+    }
 }
 
 /// Builder for creating AppState instances (useful for testing)
@@ -23,7 +73,6 @@ pub struct AppStateBuilder {
     db: Option<DatabaseConnection>,
     jwt: Option<JwtConfig>,
     email_service: Option<Arc<dyn EmailService>>,
-    auth_service: Option<Arc<dyn AuthService>>,
     fe_url: Option<String>,
     server_url: Option<String>,
     rate_limiter: Option<RateLimiter>,
@@ -42,11 +91,6 @@ impl AppStateBuilder {
 
     pub fn email_service(mut self, service: Arc<dyn EmailService>) -> Self {
         self.email_service = Some(service);
-        self
-    }
-
-    pub fn auth_service(mut self, service: Arc<dyn AuthService>) -> Self {
-        self.auth_service = Some(service);
         self
     }
 
@@ -70,7 +114,6 @@ impl AppStateBuilder {
             db: self.db.expect("db is required"),
             jwt: self.jwt.expect("jwt is required"),
             email_service: self.email_service.expect("email_service is required"),
-            auth_service: self.auth_service.expect("auth_service is required"),
             fe_url: self.fe_url.unwrap_or_default(),
             server_url: self.server_url.unwrap_or_default(),
             rate_limiter: self.rate_limiter.unwrap_or_default(),

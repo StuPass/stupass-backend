@@ -12,22 +12,12 @@ use tracing::{debug, error, info};
 use crate::{
     entities::{auth_provider, credential, prelude::AuthProvider, user},
     errors::AppError,
-    models::auth::{EmailVerifyClaims, RegisterRequest, RegisterResponse},
-    state::AppState,
+    models::auth::{EmailVerifyClaims, RegisterRequest, RegisterResponse, VerifyEmailOutcome},
+    services::auth::AuthDeps,
 };
 
-// TODO: Find a place to put this enum
-pub enum VerifyEmailOutcome {
-    Success,
-    AlreadyVerified,
-    InvalidOrExpiredToken,
-    InvalidTokenPurpose,
-    UserNotFound,
-    DatabaseError,
-}
-
-pub async fn register_user(
-    state: &AppState,
+pub async fn register_user<D: AuthDeps>(
+    deps: &D,
     req: RegisterRequest,
 ) -> Result<RegisterResponse, AppError> {
     let RegisterRequest {
@@ -64,7 +54,7 @@ pub async fn register_user(
 
     debug!("Password hashed successfully. Initiating database transaction.");
 
-    let txn = state.db.begin().await.map_err(|e| {
+    let txn = deps.db().begin().await.map_err(|e| {
         error!("Failed to begin txn: {:?}", e);
         AppError::InternalServerError
     })?;
@@ -127,7 +117,7 @@ pub async fn register_user(
         AppError::InternalServerError
     })?;
 
-    debug!("Credential record created. Committing transaction...");
+    debug!("Credential record created. Committing transaction.");
 
     txn.commit().await.map_err(|e| {
         error!("Failed to commit txn: {:?}", e);
@@ -155,7 +145,7 @@ pub async fn register_user(
     let verify_token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(state.jwt.secret.as_bytes()),
+        &EncodingKey::from_secret(deps.jwt().secret.as_bytes()),
     )
     .map_err(|e| {
         error!("Failed to sign verification token: {:?}", e);
@@ -165,12 +155,13 @@ pub async fn register_user(
     // 2. Build your deep link
     let deep_link = format!(
         "{}/auth/verify-email?token={}",
-        state.server_url, verify_token
+        deps.server_url(),
+        verify_token
     );
 
     // 3. Fire the email using the email service
-    let email_result = state
-        .email_service
+    let email_result = deps
+        .email_service()
         .send_verification_email(&email, &deep_link)
         .await;
 
@@ -198,7 +189,7 @@ pub async fn register_user(
     })
 }
 
-pub async fn verify_email(state: &AppState, token: &str) -> VerifyEmailOutcome {
+pub async fn verify_email<D: AuthDeps>(deps: &D, token: &str) -> VerifyEmailOutcome {
     info!("Attempting to verify email with provided token");
 
     let mut validation = Validation::new(Algorithm::HS256);
@@ -206,7 +197,7 @@ pub async fn verify_email(state: &AppState, token: &str) -> VerifyEmailOutcome {
 
     let token_data = match decode::<EmailVerifyClaims>(
         token,
-        &DecodingKey::from_secret(state.jwt.secret.as_bytes()),
+        &DecodingKey::from_secret(deps.jwt().secret.as_bytes()),
         &validation,
     ) {
         Ok(data) => data,
@@ -223,7 +214,7 @@ pub async fn verify_email(state: &AppState, token: &str) -> VerifyEmailOutcome {
 
     let user_id = token_data.claims.sub;
 
-    let user_record = match user::Entity::find_by_id(user_id).one(&state.db).await {
+    let user_record = match user::Entity::find_by_id(user_id).one(deps.db()).await {
         Ok(Some(u)) => u,
         Ok(None) => {
             error!("User {} not found during verification", user_id);
@@ -245,7 +236,7 @@ pub async fn verify_email(state: &AppState, token: &str) -> VerifyEmailOutcome {
     active_user.verified_at = Set(Some(Utc::now()));
     active_user.updated_at = Set(Utc::now());
 
-    if let Err(e) = active_user.update(&state.db).await {
+    if let Err(e) = active_user.update(deps.db()).await {
         error!("Failed to update user verification status: {:?}", e);
         return VerifyEmailOutcome::DatabaseError;
     }

@@ -16,12 +16,12 @@ use crate::{
         ForgotPasswordRequest, ForgotPasswordResponse, MessageResponse, ResetPasswordRequest,
         ResetPasswordResponse,
     },
-    state::AppState,
+    services::auth::AuthDeps,
     utils::jwt_token::*,
 };
 
-pub async fn reset_password(
-    state: &AppState,
+pub async fn reset_password<D: AuthDeps>(
+    deps: &D,
     req: ResetPasswordRequest,
 ) -> Result<ResetPasswordResponse, AppError> {
     let ResetPasswordRequest {
@@ -35,7 +35,7 @@ pub async fn reset_password(
     let token_hash = hash_token(&token);
 
     // --- 2. Begin transaction early for atomic token validation ---
-    let txn = state.db.begin().await.map_err(|e| {
+    let txn = deps.db().begin().await.map_err(|e| {
         error!("Failed to begin transaction: {:?}", e);
         AppError::InternalServerError
     })?;
@@ -173,8 +173,8 @@ pub async fn reset_password(
     }))
 }
 
-pub async fn send_forgot_password_email(
-    state: &AppState,
+pub async fn send_forgot_password_email<D: AuthDeps>(
+    deps: &D,
     req: ForgotPasswordRequest,
 ) -> Result<ForgotPasswordResponse, AppError> {
     let ForgotPasswordRequest { email } = req;
@@ -182,7 +182,7 @@ pub async fn send_forgot_password_email(
     info!("Password reset requested for email: {}", email);
 
     // --- Rate limiting check (3 requests per hour per email) ---
-    if let Err(remaining_secs) = state.rate_limiter.check_password_reset(&email) {
+    if let Err(remaining_secs) = deps.rate_limiter().check_password_reset(&email) {
         info!(
             "Password reset rate limited for email: {}. Try again in {} seconds",
             email, remaining_secs
@@ -208,7 +208,7 @@ pub async fn send_forgot_password_email(
     // --- 1. Find user by email ---
     let user_record = User::find()
         .filter(user::Column::Email.eq(&email))
-        .one(&state.db)
+        .one(deps.db())
         .await;
 
     // Handle lookup result - we proceed silently on errors to prevent enumeration
@@ -245,17 +245,17 @@ pub async fn send_forgot_password_email(
         ..Default::default()
     };
 
-    if let Err(e) = new_reset_token.insert(&state.db).await {
+    if let Err(e) = new_reset_token.insert(deps.db()).await {
         error!("Failed to store password reset token: {:?}", e);
         return Ok(success_response());
     }
 
     // --- 5. Build reset link (frontend URL with token) ---
-    let reset_link = format!("{}/reset-password?token={}", state.fe_url, reset_token);
+    let reset_link = format!("{}/reset-password?token={}", deps.fe_url(), reset_token);
 
     // --- 6. Send password reset email ---
-    let email_result = state
-        .email_service
+    let email_result = deps
+        .email_service()
         .send_password_reset_email(&email, &reset_link)
         .await;
 

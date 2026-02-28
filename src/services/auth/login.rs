@@ -4,18 +4,19 @@ use sea_orm::prelude::*;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use tokio::task;
 use tracing::{error, info};
+use uuid::Uuid;
 
 use crate::{
     entities::prelude::{AuthProvider, Credential},
     entities::{auth_provider, credential, session},
     errors::AppError,
     models::auth::{AuthTokens, LoginRequest, LoginResponse},
-    state::AppState,
+    services::auth::AuthDeps,
     utils::jwt_token::*,
 };
 
-pub async fn authenticate_user(
-    state: &AppState,
+pub async fn authenticate_user<D: AuthDeps>(
+    deps: &D,
     req: LoginRequest,
 ) -> Result<LoginResponse, AppError> {
     // TODO: Add ConnectInfo argument
@@ -30,7 +31,7 @@ pub async fn authenticate_user(
     // Lookup "Password" provider ID (assumes it exists)
     let provider_id = AuthProvider::find()
         .filter(auth_provider::Column::Name.eq("Password"))
-        .one(&state.db)
+        .one(deps.db())
         .await
         .map_err(|e| {
             error!("Database error during auth provider lookup: {:?}", e);
@@ -46,7 +47,7 @@ pub async fn authenticate_user(
     let credential: credential::Model = Credential::find()
         .filter(credential::Column::ProviderId.eq(provider_id))
         .filter(credential::Column::Identifier.eq(&identifier))
-        .one(&state.db)
+        .one(deps.db())
         .await
         .map_err(|e| {
             error!("Database error during credential lookup: {:?}", e);
@@ -81,7 +82,7 @@ pub async fn authenticate_user(
 
     // Generate access token (JWT)
     let access_token =
-        generate_access_token(user_id, &state.jwt.secret, state.jwt.access_token_expiry)?;
+        generate_access_token(user_id, &deps.jwt().secret, deps.jwt().access_token_expiry)?;
 
     // Generate refresh token (64-char random string)
     let refresh_token = generate_session_token();
@@ -89,7 +90,7 @@ pub async fn authenticate_user(
 
     // Create session record
     let now = Utc::now();
-    let expires_at = now + Duration::seconds(state.jwt.refresh_token_expiry);
+    let expires_at = now + Duration::seconds(deps.jwt().refresh_token_expiry);
 
     let new_session = session::ActiveModel {
         session_token_hash: Set(refresh_token_hash),
@@ -102,7 +103,7 @@ pub async fn authenticate_user(
         ..Default::default()
     };
 
-    new_session.insert(&state.db).await.map_err(|e| {
+    new_session.insert(deps.db()).await.map_err(|e| {
         error!("Failed to create session: {:?}", e);
         AppError::InternalServerError
     })?;
@@ -111,7 +112,7 @@ pub async fn authenticate_user(
         tokens: AuthTokens {
             access_token,
             refresh_token,
-            expires_in: state.jwt.access_token_expiry,
+            expires_in: deps.jwt().access_token_expiry,
         },
     })
 }

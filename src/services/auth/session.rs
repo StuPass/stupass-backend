@@ -5,11 +5,11 @@ use tracing::{debug, error, info};
 
 use crate::{
     entities::prelude::Session, entities::session, errors::AppError, models::auth::*,
-    state::AppState, utils::jwt_token::*,
+    services::auth::AuthDeps, utils::jwt_token::*,
 };
 
-pub async fn refresh_session(
-    state: &AppState,
+pub async fn refresh_session<D: AuthDeps>(
+    deps: &D,
     req: RefreshRequest,
 ) -> Result<RefreshResponse, AppError> {
     let RefreshRequest { refresh_token } = req;
@@ -19,7 +19,7 @@ pub async fn refresh_session(
     // Look up the session in the database
     let session_record: session::Model = Session::find()
         .filter(session::Column::SessionTokenHash.eq(&incoming_hash))
-        .one(&state.db)
+        .one(deps.db())
         .await
         .map_err(|e| {
             error!("Database error during session lookup: {:?}", e);
@@ -37,7 +37,7 @@ pub async fn refresh_session(
         info!("Refresh token expired for user: {}", session_record.user_id);
 
         // Delete the expired session
-        let _ = session_record.clone().delete(&state.db).await;
+        let _ = session_record.clone().delete(deps.db()).await;
 
         return Err(AppError::Unauthorized);
     }
@@ -45,14 +45,14 @@ pub async fn refresh_session(
     // Generate the new Access Token (JWT)
     let new_access_token = generate_access_token(
         session_record.user_id,
-        &state.jwt.secret,
-        state.jwt.access_token_expiry,
+        &deps.jwt().secret,
+        deps.jwt().access_token_expiry,
     )?;
 
     // Generate a new Refresh Token (Token Rotation)
     let new_refresh_token = generate_session_token();
     let new_refresh_hash = hash_token(&new_refresh_token);
-    let new_expires_at = now + Duration::seconds(state.jwt.refresh_token_expiry);
+    let new_expires_at = now + Duration::seconds(deps.jwt().refresh_token_expiry);
 
     // Update the existing session record with the new hash and expiration
     let mut active_session: session::ActiveModel = session_record.into();
@@ -60,7 +60,7 @@ pub async fn refresh_session(
     active_session.last_refresh = Set(now);
     active_session.expires_at = Set(new_expires_at);
 
-    active_session.update(&state.db).await.map_err(|e| {
+    active_session.update(deps.db()).await.map_err(|e| {
         error!("Failed to update session: {:?}", e);
         AppError::InternalServerError
     })?;
@@ -70,13 +70,13 @@ pub async fn refresh_session(
         tokens: AuthTokens {
             access_token: new_access_token,
             refresh_token: new_refresh_token,
-            expires_in: state.jwt.access_token_expiry,
+            expires_in: deps.jwt().access_token_expiry,
         },
     })
 }
 
-pub async fn invalidate_session(
-    state: &AppState,
+pub async fn invalidate_session<D: AuthDeps>(
+    deps: &D,
     req: LogoutRequest,
 ) -> Result<LogoutResponse, AppError> {
     let LogoutRequest { refresh_token } = req;
@@ -87,7 +87,7 @@ pub async fn invalidate_session(
     // Find and delete the session.
     let result = Session::delete_many()
         .filter(session::Column::SessionTokenHash.eq(incoming_hash))
-        .exec(&state.db)
+        .exec(deps.db())
         .await
         .map_err(|e| {
             error!("Database error during logout: {:?}", e);

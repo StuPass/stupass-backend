@@ -1,9 +1,9 @@
 use axum::{Json, extract::Query, extract::State, response::Html};
-use utoipa;
 
 use crate::errors::AppError;
 use crate::models::auth::*;
-use crate::state::AppState;
+use crate::services::auth::{login, password, register, session};
+use crate::state::AuthState;
 
 /// Register a new user
 ///
@@ -20,10 +20,10 @@ use crate::state::AppState;
     tag = "auth",
 )]
 pub async fn register(
-    State(state): State<AppState>,
+    State(auth_state): State<AuthState>,
     Json(payload): Json<RegisterRequest>,
 ) -> Result<RegisterResponse, AppError> {
-    state.auth_service.register(&state, payload).await
+    register::register_user(&auth_state, payload).await
 }
 
 /// Login with credentials
@@ -40,10 +40,10 @@ pub async fn register(
     tag = "auth",
 )]
 pub async fn login(
-    State(state): State<AppState>,
+    State(auth_state): State<AuthState>,
     Json(payload): Json<LoginRequest>,
 ) -> Result<LoginResponse, AppError> {
-    state.auth_service.login(&state, payload).await
+    login::authenticate_user(&auth_state, payload).await
 }
 
 /// Logout and invalidate session
@@ -60,10 +60,10 @@ pub async fn login(
     tag = "auth",
 )]
 pub async fn logout(
-    State(state): State<AppState>,
+    State(auth_state): State<AuthState>,
     Json(payload): Json<LogoutRequest>,
 ) -> Result<LogoutResponse, AppError> {
-    state.auth_service.logout(&state, payload).await
+    session::invalidate_session(&auth_state, payload).await
 }
 
 /// Refresh access token
@@ -80,10 +80,10 @@ pub async fn logout(
     tag = "auth",
 )]
 pub async fn refresh(
-    State(state): State<AppState>,
+    State(auth_state): State<AuthState>,
     Json(payload): Json<RefreshRequest>,
 ) -> Result<RefreshResponse, AppError> {
-    state.auth_service.refresh(&state, payload).await
+    session::refresh_session(&auth_state, payload).await
 }
 
 /// Request password reset
@@ -100,10 +100,10 @@ pub async fn refresh(
     tag = "auth",
 )]
 pub async fn forgot_password(
-    State(state): State<AppState>,
+    State(auth_state): State<AuthState>,
     Json(payload): Json<ForgotPasswordRequest>,
 ) -> Result<ForgotPasswordResponse, AppError> {
-    state.auth_service.forgot_password(&state, payload).await
+    password::send_forgot_password_email(&auth_state, payload).await
 }
 
 /// Reset password with token
@@ -121,10 +121,10 @@ pub async fn forgot_password(
     tag = "auth",
 )]
 pub async fn reset_password(
-    State(state): State<AppState>,
+    State(auth_state): State<AuthState>,
     Json(payload): Json<ResetPasswordRequest>,
 ) -> Result<ResetPasswordResponse, AppError> {
-    state.auth_service.reset_password(&state, payload).await
+    password::reset_password(&auth_state, payload).await
 }
 
 /// Verify email address
@@ -140,12 +140,10 @@ pub async fn reset_password(
     tag = "auth"
 )]
 pub async fn verify_email(
-    State(state): State<AppState>,
+    State(auth_state): State<AuthState>,
     Query(query): Query<TokenQuery>,
 ) -> Html<String> {
-    use crate::services::auth::register::VerifyEmailOutcome;
-
-    let outcome = state.auth_service.verify_email(&state, &query.token).await;
+    let outcome = register::verify_email(&auth_state, &query.token).await;
 
     let (title, message, is_success) = match outcome {
         VerifyEmailOutcome::Success => (
