@@ -4,23 +4,17 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use sea_orm::EntityTrait;
 use tracing::error;
 
-use crate::{
-    entities::user,
-    errors::AppError,
-    models::auth::{Claims, MessageResponse}, 
-    state::AppState,
-};
+use crate::{entities::user, errors::AppError, models::auth::Claims, state::AppState};
 
 pub async fn auth_middleware(
     State(state): State<AppState>,
     mut req: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    
     let auth_header = req
         .headers()
         .get(AUTHORIZATION)
@@ -44,7 +38,8 @@ pub async fn auth_middleware(
         token,
         &DecodingKey::from_secret(state.jwt.secret.as_bytes()),
         &validation,
-    ).map_err(|e| {
+    )
+    .map_err(|e| {
         error!("JWT verification failed: {:?}", e);
         AppError::Unauthorized
     })?;
@@ -54,14 +49,21 @@ pub async fn auth_middleware(
         AppError::Unauthorized
     })?;
 
-    let user_record = user::Entity::find_by_id(user_id)        .one(&state.db)
+    let user_record = user::Entity::find_by_id(user_id)
+        .one(&state.db)
         .await
         .map_err(|e| {
-            error!("Database error during auth middleware for user {}: {:?}", user_id, e);
+            error!(
+                "Database error during auth middleware for user {}: {:?}",
+                user_id, e
+            );
             AppError::InternalServerError
         })?
         .ok_or_else(|| {
-            error!("Token is mathematically valid, but user {} not found in database", user_id);
+            error!(
+                "Token is mathematically valid, but user {} not found in database",
+                user_id
+            );
             AppError::Unauthorized
         })?;
 

@@ -1,6 +1,7 @@
 use axum::{
     Router,
     http::StatusCode,
+    middleware,
     response::IntoResponse,
     routing::{get, post},
 };
@@ -20,6 +21,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use stupass_backend::config::build_config;
 use stupass_backend::handlers::auth;
 use stupass_backend::handlers::general;
+use stupass_backend::middleware::auth_middleware::auth_middleware;
 use stupass_backend::models;
 use stupass_backend::rate_limit::RateLimiter;
 use stupass_backend::services::email::ResendEmailService;
@@ -36,6 +38,9 @@ use stupass_backend::state::AppState;
         auth::forgot_password,
         auth::reset_password,
         auth::verify_email,
+        // auth::resend_verification,
+        // auth::check_status,
+        // auth::complete_profile,
     ),
     components(schemas(
         models::auth::RegisterRequest,
@@ -44,6 +49,8 @@ use stupass_backend::state::AppState;
         models::auth::RefreshRequest,
         models::auth::ForgotPasswordRequest,
         models::auth::ResetPasswordRequest,
+        // models::auth::ResendVerificationRequest,
+        // models::auth::CompleteProfileRequest,
         models::auth::TokenQuery,
         models::auth::AuthTokens,
         models::auth::RegisterResponse,
@@ -53,6 +60,8 @@ use stupass_backend::state::AppState;
         models::auth::ForgotPasswordResponse,
         models::auth::ResetPasswordResponse,
         models::auth::VerifyEmailResponse,
+        // models::auth::CompleteProfileResponse,
+        // models::auth::CheckStatusResponse,
         models::auth::BadRequest,
         models::auth::Unauthorized,
         models::auth::Conflict,
@@ -61,8 +70,28 @@ use stupass_backend::state::AppState;
         (name = "general", description = "General endpoints"),
         (name = "auth", description = "Authentication endpoints"),
     ),
+    // This tells Swagger that endpoints marked with security use a Bearer token
+    modifiers(&SecurityAddon),
 )]
 struct ApiDoc;
+
+// Helper to add Bearer Auth to Swagger UI
+struct SecurityAddon;
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "bearer_auth",
+                utoipa::openapi::security::SecurityScheme::Http(
+                    utoipa::openapi::security::HttpBuilder::new()
+                        .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                        .bearer_format("JWT")
+                        .build(),
+                ),
+            )
+        }
+    }
+}
 
 #[tokio::main]
 async fn main() {
@@ -102,19 +131,30 @@ async fn main() {
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers([CONTENT_TYPE, AUTHORIZATION, ACCEPT]);
 
-    let app = Router::new()
+    let public_routes = Router::new()
         .route("/health", get(general::health))
-        // Auth routes
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
-        .route("/auth/logout", post(auth::logout))
         .route("/auth/refresh", post(auth::refresh))
         .route("/auth/forgot-password", post(auth::forgot_password))
         .route("/auth/reset-password", post(auth::reset_password))
-        .route("/auth/verify-email", get(auth::verify_email))
+        .route("/auth/verify-email", get(auth::verify_email));
+    // .route("/auth/resend-verification", post(auth::resend_verification))
+    // .route("/auth/check-status/{user_id}", get(auth::check_status));
+
+    let protected_routes = Router::new()
+        .route("/auth/logout", post(auth::logout))
+        // .route("/auth/complete-profile", post(auth::complete_profile))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    let app = Router::new()
+        .merge(public_routes)
+        .merge(protected_routes)
         .fallback(handler_404)
         .with_state(state)
-        // Swagger UI at root
         .merge(SwaggerUi::new("/").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .layer(cors);
 
