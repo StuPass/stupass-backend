@@ -7,3 +7,4 @@ pub mod rate_limit;
 pub mod services;
 pub mod state;
 pub mod utils;
+pub mod middleware;
