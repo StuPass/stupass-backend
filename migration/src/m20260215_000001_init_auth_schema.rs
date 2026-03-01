@@ -27,7 +27,7 @@ impl MigrationTrait for Migration {
                     .col(uuid(User::Id).primary_key())
                     .col(string(User::Username).not_null().unique_key())
                     .col(string(User::Email).not_null().unique_key())
-                    .col(string(User::Phone).not_null().unique_key())
+                    .col(string_null(User::Phone).unique_key())
                     .col(string(User::FullName).not_null())
                     .col(string_null(User::AvatarUrl))
                     .col(string_null(User::Bio))
