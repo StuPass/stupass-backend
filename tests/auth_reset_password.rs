@@ -402,6 +402,8 @@ async fn reset_password_can_login_with_new_password_after_reset() {
     assert!(!body.tokens.access_token.is_empty());
 }
 
+// TODO: Change reset password flow to restrict and invalidate old token when new token is requested,
+// TODO: ensuring only one token is active at any given time
 #[tokio::test]
 async fn reset_password_multiple_tokens_only_first_used_works() {
     let ctx = TestContext::new().await;
