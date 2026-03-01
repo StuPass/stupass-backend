@@ -43,7 +43,9 @@ pub struct RegisterRequest {
     pub password: String,
     #[validate(length(min = 1, message = "Full name cannot be empty"))]
     pub full_name: String,
+    #[validate(length(min = 1, message = "Student ID cannot be empty"))]
     pub student_id: String,
+    #[validate(length(min = 1, message = "School ID cannot be empty"))]
     pub school_id: String,
 }
 
