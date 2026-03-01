@@ -88,6 +88,7 @@ pub async fn seed_credentials(
         .map(|input| {
             let salt = SaltString::generate(&mut OsRng);
             let argon2 = Argon2::default();
+            // TODO: More graceful error handling
             let hashed = argon2
                 .hash_password(input.password.as_bytes(), &salt)
                 .expect("Failed to hash password")
