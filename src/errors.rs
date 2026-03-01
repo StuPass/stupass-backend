@@ -20,9 +20,9 @@ pub fn internal_error<E: std::fmt::Display>(err: E) -> AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status, err_msg) = match self {
-            Self::InternalServerError(message) => (
+            Self::InternalServerError(_message) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Internal Server Error: {}", message),
+                String::from("Internal Server Error"),
             ),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, String::from("Unauthorized")),
             Self::NotFound => (StatusCode::NOT_FOUND, String::from("Not found")),
