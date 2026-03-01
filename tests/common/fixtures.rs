@@ -2,11 +2,17 @@
 
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    password_hash::{
+        PasswordHasher, SaltString,
+        rand_core::{CryptoRngCore, OsRng as ArgonOsRng},
+    },
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{Duration, Utc};
-use rand::RngCore;
+use rand::{
+    RngCore, TryRngCore,
+    rand_core::{CryptoRng, OsRng},
+};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -131,7 +137,7 @@ pub async fn create_password_reset_token(
 
 /// Hash a password using Argon2 (for test fixtures)
 fn hash_password(password: &str) -> String {
-    let salt = SaltString::generate(&mut OsRng);
+    let salt = SaltString::generate(&mut ArgonOsRng);
     let argon2 = Argon2::default();
     argon2
         .hash_password(password.as_bytes(), &salt)
@@ -149,7 +155,9 @@ fn hash_token(token: &str) -> String {
 /// Generate a random test token
 fn generate_test_token() -> String {
     let mut bytes = [0u8; 48];
-    rand::rng().fill_bytes(&mut bytes);
+    OsRng
+        .try_fill_bytes(&mut bytes)
+        .expect("OS hardware entropy failure");
     URL_SAFE_NO_PAD.encode(bytes)
 }
 
