@@ -83,6 +83,7 @@ pub struct ForgotPasswordRequest {
 #[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct ResetPasswordRequest {
     /// Reset token from email link (extracted by frontend from URL)
+    #[validate(length(min = 1, message = "Token cannot be empty"))]
     pub token: String,
     #[validate(length(min = 8, message = "Password must be at least 8 characters long"))]
     pub new_password: String,
