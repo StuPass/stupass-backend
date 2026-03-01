@@ -16,9 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install nextest
         uses: taiki-e/install-action@nextest
+
       - name: Run sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Run nextest
         run: cargo nextest run --fail-fast --test-threads=1
