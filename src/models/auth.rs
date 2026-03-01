@@ -42,19 +42,10 @@ pub struct RegisterRequest {
     pub school_id: String,
 }
 
-// #[derive(Debug, Deserialize, ToSchema)]
-// pub struct ResendVerificationRequest {
-//     pub email: String,
-// }
-
-// #[derive(Debug, Deserialize, ToSchema)]
-// pub struct CompleteProfileRequest {
-//     pub username: String,
-//     pub full_name: String,
-//     pub student_id: String,
-//     pub school_id: String,
-//     pub phone: Option<String>,
-// }
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ResendVerificationRequest {
+    pub email: String,
+}
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct LoginRequest {
@@ -115,18 +106,18 @@ impl IntoResponse for RegisterResponse {
     }
 }
 
-// #[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
-// #[response(status = 200)]
-// pub struct CheckStatusResponse {
-//     pub verification_status: String,
-//     pub profile_completed: bool,
-// }
+#[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
+#[response(status = 200)]
+pub struct CheckStatusResponse {
+    pub verification_status: String,
+    pub profile_completed: bool,
+}
 
-// impl IntoResponse for CheckStatusResponse {
-//     fn into_response(self) -> Response {
-//         Json(self).into_response()
-//     }
-// }
+impl IntoResponse for CheckStatusResponse {
+    fn into_response(self) -> Response {
+        Json(self).into_response()
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, IntoResponses)]
 #[response(status = 200)]

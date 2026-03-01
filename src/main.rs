@@ -38,9 +38,8 @@ use stupass_backend::state::AppState;
         auth::forgot_password,
         auth::reset_password,
         auth::verify_email,
-        // auth::resend_verification,
-        // auth::check_status,
-        // auth::complete_profile,
+        auth::resend_verification,
+        auth::check_status,
     ),
     components(schemas(
         models::auth::RegisterRequest,
@@ -49,8 +48,7 @@ use stupass_backend::state::AppState;
         models::auth::RefreshRequest,
         models::auth::ForgotPasswordRequest,
         models::auth::ResetPasswordRequest,
-        // models::auth::ResendVerificationRequest,
-        // models::auth::CompleteProfileRequest,
+        models::auth::ResendVerificationRequest,
         models::auth::TokenQuery,
         models::auth::AuthTokens,
         models::auth::RegisterResponse,
@@ -60,8 +58,7 @@ use stupass_backend::state::AppState;
         models::auth::ForgotPasswordResponse,
         models::auth::ResetPasswordResponse,
         models::auth::VerifyEmailResponse,
-        // models::auth::CompleteProfileResponse,
-        // models::auth::CheckStatusResponse,
+        models::auth::CheckStatusResponse,
         models::auth::BadRequest,
         models::auth::Unauthorized,
         models::auth::Conflict,
@@ -138,13 +135,12 @@ async fn main() {
         .route("/auth/refresh", post(auth::refresh))
         .route("/auth/forgot-password", post(auth::forgot_password))
         .route("/auth/reset-password", post(auth::reset_password))
-        .route("/auth/verify-email", get(auth::verify_email));
-    // .route("/auth/resend-verification", post(auth::resend_verification))
-    // .route("/auth/check-status/{user_id}", get(auth::check_status));
+        .route("/auth/verify-email", get(auth::verify_email))
+        .route("/auth/resend-verification", post(auth::resend_verification))
+        .route("/auth/check-status/{user_id}", get(auth::check_status));
 
     let protected_routes = Router::new()
         .route("/auth/logout", post(auth::logout))
-        // .route("/auth/complete-profile", post(auth::complete_profile))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,

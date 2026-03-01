@@ -49,6 +49,6 @@ pub fn generate_access_token(
     )
     .map_err(|e| {
         error!("Failed to encode JWT: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })
 }
