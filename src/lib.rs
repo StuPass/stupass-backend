@@ -1,10 +1,11 @@
 pub mod config;
 pub mod entities;
 pub mod errors;
+pub mod extractors;
 pub mod handlers;
+pub mod middleware;
 pub mod models;
 pub mod rate_limit;
 pub mod services;
 pub mod state;
 pub mod utils;
-pub mod middleware;

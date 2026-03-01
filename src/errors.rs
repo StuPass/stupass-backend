@@ -10,6 +10,7 @@ pub enum AppError {
     NotFound,
     BadRequest(String),
     Conflict(String),
+    ValidationError(validator::ValidationErrors),
 }
 
 pub fn internal_error<E: std::fmt::Display>(err: E) -> AppError {
@@ -31,6 +32,10 @@ impl IntoResponse for AppError {
                 format!("Bad request error: {message}"),
             ),
             Self::Conflict(message) => (StatusCode::CONFLICT, format!("Conflict: {message}")),
+            Self::ValidationError(errors) => {
+                // Return 400 with the validation error details serialized as JSON
+                return (StatusCode::BAD_REQUEST, axum::Json(errors)).into_response();
+            }
         };
         (status, Json(json!({ "message": err_msg }))).into_response()
     }
