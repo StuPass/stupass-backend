@@ -269,7 +269,7 @@ pub fn generate_email_verify_token(user_id: Uuid, secret: &str, expires_in_hours
     use jsonwebtoken::{EncodingKey, Header, encode};
     use stupass_backend::models::auth::EmailVerifyClaims;
 
-    let expiration = (Utc::now() + Duration::hours(expires_in_hours)).timestamp() as usize;
+    let expiration = (Utc::now() + Duration::hours(expires_in_hours)).timestamp();
 
     let claims = EmailVerifyClaims {
         sub: user_id,
@@ -290,7 +290,7 @@ pub fn generate_wrong_purpose_token(user_id: Uuid, secret: &str) -> String {
     use jsonwebtoken::{EncodingKey, Header, encode};
     use stupass_backend::models::auth::EmailVerifyClaims;
 
-    let expiration = (Utc::now() + Duration::hours(24)).timestamp() as usize;
+    let expiration = (Utc::now() + Duration::hours(24)).timestamp();
 
     let claims = EmailVerifyClaims {
         sub: user_id,

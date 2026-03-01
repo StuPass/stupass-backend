@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::warn;
 
-// TODO: Implement eviction for old entries
 /// Tracks password reset request attempts per email address
 #[derive(Debug, Clone)]
 pub struct RateLimiter {

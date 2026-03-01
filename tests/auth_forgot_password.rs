@@ -210,13 +210,17 @@ async fn forgot_password_multiple_requests_create_multiple_tokens() {
         .await;
     }
 
-    // Should have 3 tokens in DB
+    // Should have 1 token in DB because older ones are invalidated immediately
     let token_count = PasswordResetToken::find()
         .filter(password_reset_token::Column::UserId.eq(user.id))
+        .filter(password_reset_token::Column::UsedAt.is_null())
         .count(&ctx.db)
         .await
         .unwrap();
-    assert_eq!(token_count, 3);
+    assert_eq!(
+        token_count, 1,
+        "There should only be 1 active unused reset token remaining after consecutive requests"
+    );
 }
 
 #[tokio::test]
@@ -248,12 +252,13 @@ async fn forgot_password_rate_limited_request_does_not_create_token() {
 
     let token_count = PasswordResetToken::find()
         .filter(password_reset_token::Column::UserId.eq(user.id))
+        .filter(password_reset_token::Column::UsedAt.is_null())
         .count(&ctx.db)
         .await
         .unwrap();
     assert_eq!(
-        token_count, 3,
-        "Rate-limited request should not create additional tokens"
+        token_count, 1,
+        "Rate-limited request should not alter the 1 active active unused reset token remaining"
     );
 }
 

@@ -133,11 +133,10 @@ pub async fn register_user<D: AuthDeps>(
     // Generate Verification Token & Send Email
     // ==========================================
 
-    // 1. Create a 24-hour expiration token
     let expiration = Utc::now()
         .checked_add_signed(chrono::Duration::hours(24))
         .expect("valid timestamp")
-        .timestamp() as usize;
+        .timestamp();
 
     let claims = EmailVerifyClaims {
         sub: inserted_user.id,
@@ -319,7 +318,7 @@ pub async fn resend_verification<D: AuthDeps>(
     let expiration = Utc::now()
         .checked_add_signed(chrono::Duration::hours(24))
         .unwrap()
-        .timestamp() as usize;
+        .timestamp();
 
     let claims = EmailVerifyClaims {
         sub: user.id,
