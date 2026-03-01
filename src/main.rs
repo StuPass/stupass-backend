@@ -166,7 +166,12 @@ async fn main() {
     tracing::info!("Server listening on http://{}", socket_addr);
     tracing::info!("API docs available at http://{}/", socket_addr);
 
-    axum::serve(listener, app).await.expect("Server error");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("Server error");
 }
 
 // Function to initialize tracing

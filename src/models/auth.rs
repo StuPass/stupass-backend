@@ -197,13 +197,11 @@ pub struct Unauthorized(pub MessageResponse<String>);
 #[response(status = 409)]
 pub struct Conflict(pub MessageResponse<String>);
 
-// TODO: Assess variant redundancy
 // Enums
 pub enum VerifyEmailOutcome {
     Success,
     AlreadyVerified,
     InvalidOrExpiredToken,
-    InvalidTokenPurpose,
     UserNotFound,
     DatabaseError,
 }

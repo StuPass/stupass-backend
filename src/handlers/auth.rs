@@ -1,9 +1,11 @@
 use crate::extractors::validation::ValidJson;
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{ConnectInfo, Path, Query, State},
     response::Html,
 };
+use http::HeaderMap;
+use std::net::SocketAddr;
 use uuid::Uuid;
 
 use crate::errors::AppError;
@@ -86,9 +88,22 @@ pub async fn resend_verification(
 )]
 pub async fn login(
     State(auth_state): State<AuthState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     ValidJson(payload): ValidJson<LoginRequest>,
 ) -> Result<LoginResponse, AppError> {
-    login::authenticate_user(&auth_state, payload).await
+    let ip_address = headers
+        .get("x-forwarded-for")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or("").trim().to_string())
+        .unwrap_or_else(|| addr.ip().to_string());
+
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    login::authenticate_user(&auth_state, payload, Some(ip_address), user_agent).await
 }
 
 /// Logout and invalidate session
@@ -204,11 +219,6 @@ pub async fn verify_email(
         VerifyEmailOutcome::InvalidOrExpiredToken => (
             "Verification Failed",
             "This link is invalid or has expired. Please request a new verification email from the app.",
-            false,
-        ),
-        VerifyEmailOutcome::InvalidTokenPurpose => (
-            "Invalid Link",
-            "This token cannot be used for email verification.",
             false,
         ),
         VerifyEmailOutcome::UserNotFound => (
