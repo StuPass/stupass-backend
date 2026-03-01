@@ -35,11 +35,11 @@ pub async fn authenticate_user<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during auth provider lookup: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             error!("Auth provider 'Password' not found in database");
-            AppError::InternalServerError(String::from("Auth provider 'Password' not found"))
+            AppError::InternalServerError
         })?
         .id;
 
@@ -51,7 +51,7 @@ pub async fn authenticate_user<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during credential lookup: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             info!("No credential found for identifier: {}", &identifier);
@@ -78,7 +78,7 @@ pub async fn authenticate_user<D: AuthDeps>(
     .await
     .map_err(|e| {
         error!("Thread pool error during password verification: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     if !verify_result {
@@ -111,7 +111,7 @@ pub async fn authenticate_user<D: AuthDeps>(
 
     new_session.insert(deps.db()).await.map_err(|e| {
         error!("Failed to create session: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     Ok(LoginResponse {

@@ -85,15 +85,13 @@ impl EmailService for ResendEmailService {
             .await
             .map_err(|e| {
                 error!("Failed to reach Resend API: {:?}", e);
-                AppError::InternalServerError(e.to_string())
+                AppError::InternalServerError
             })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
             error!("Resend API rejected the email request: {}", error_text);
-            return Err(AppError::InternalServerError(String::from(
-                "Failed to send verification email",
-            )));
+            return Err(AppError::InternalServerError);
         }
 
         info!("Successfully sent verification email via Resend to {}", to);
@@ -139,7 +137,7 @@ impl EmailService for ResendEmailService {
             .await
             .map_err(|e| {
                 error!("Failed to reach Resend API: {:?}", e);
-                AppError::InternalServerError(e.to_string())
+                AppError::InternalServerError
             })?;
 
         if !response.status().is_success() {
@@ -148,9 +146,7 @@ impl EmailService for ResendEmailService {
                 "Resend API rejected the password reset email request: {}",
                 error_text
             );
-            return Err(AppError::InternalServerError(String::from(
-                "Failed to send password reset email",
-            )));
+            return Err(AppError::InternalServerError);
         }
 
         info!(

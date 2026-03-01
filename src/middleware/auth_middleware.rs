@@ -57,7 +57,7 @@ pub async fn auth_middleware(
                 "Database error during auth middleware for user {}: {:?}",
                 user_id, e
             );
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             error!(

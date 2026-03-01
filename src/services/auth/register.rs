@@ -12,8 +12,8 @@ use tracing::{debug, error, info};
 use crate::{
     entities::{auth_provider, credential, prelude::AuthProvider, user},
     errors::AppError,
-    models::auth::{EmailVerifyClaims, RegisterRequest, RegisterResponse, VerifyEmailOutcome},
-    // models::auth::*,
+    models::auth::{EmailVerifyClaims, RegisterRequest, RegisterResponse, VerifyEmailOutcome,
+                   ResendVerificationRequest, ResendVerificationResponse, CheckStatusResponse, MessageResponse},
     services::auth::AuthDeps,
 };
 
@@ -46,18 +46,18 @@ pub async fn register_user<D: AuthDeps>(
     .await
     .map_err(|e| {
         error!("Thread pool error during password hashing: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?
     .map_err(|e| {
         error!("Failed to hash password: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     debug!("Password hashed successfully. Initiating database transaction.");
 
     let txn = deps.db().begin().await.map_err(|e| {
         error!("Failed to begin txn: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     debug!("Inserting User record...");
@@ -80,7 +80,7 @@ pub async fn register_user<D: AuthDeps>(
 
     let inserted_user = new_user.insert(&txn).await.map_err(|e| {
         error!("Failed to insert user: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     debug!(
@@ -94,11 +94,11 @@ pub async fn register_user<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during auth provider lookup: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             error!("Auth provider 'Password' not found in database");
-            AppError::InternalServerError(String::from("Auth provider 'Password' not found"))
+            AppError::InternalServerError
         })?
         .id;
 
@@ -115,14 +115,14 @@ pub async fn register_user<D: AuthDeps>(
 
     new_credential.insert(&txn).await.map_err(|e| {
         error!("Failed to insert credential: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     debug!("Credential record created. Committing transaction.");
 
     txn.commit().await.map_err(|e| {
         error!("Failed to commit txn: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     info!("Successfully registered user ID: {}", inserted_user.id);
@@ -150,7 +150,7 @@ pub async fn register_user<D: AuthDeps>(
     )
     .map_err(|e| {
         error!("Failed to sign verification token: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     // 2. Build your deep link
@@ -246,138 +246,87 @@ pub async fn verify_email<D: AuthDeps>(deps: &D, token: &str) -> VerifyEmailOutc
     VerifyEmailOutcome::Success
 }
 
-// pub async fn check_status<D: AuthDeps>(
-//     deps: &D,
-//     user_id: Uuid,
-// ) -> Result<CheckStatusResponse, AppError> {
-//     let user_record = user::Entity::find_by_id(user_id)
-//         .one(deps.db())
-//         .await
-//         .map_err(|e| {
-//             error!("Database error checking status for user {}: {:?}", user_id, e);
-//             AppError::InternalServerError
-//         })?
-//         .ok_or_else(|| {
-//             info!("Status check failed: User {} not found", user_id);
-//             AppError::NotFound
-//         })?;
+pub async fn check_status<D: AuthDeps>(
+    deps: &D,
+    user_id: Uuid,
+) -> Result<CheckStatusResponse, AppError> {
+    let user_record = user::Entity::find_by_id(user_id)
+        .one(deps.db())
+        .await
+        .map_err(|e| {
+            error!("Database error checking status for user {}: {:?}", user_id, e);
+            AppError::InternalServerError
+        })?
+        .ok_or_else(|| {
+            info!("Status check failed: User {} not found", user_id);
+            AppError::NotFound
+        })?;
 
-//     // If student_id is not pending, they have finished onboarding
-//     let profile_completed = user_record.student_id != String::from("pending");
+    // If student_id is not pending, they have finished onboarding
+    let profile_completed = user_record.student_id != String::from("pending");
 
-//     Ok(CheckStatusResponse {
-//         verification_status: user_record.verification_status,
-//         profile_completed,
-//     })
-// }
+    Ok(CheckStatusResponse {
+        verification_status: user_record.verification_status,
+        profile_completed,
+    })
+}
 
-// pub async fn complete_profile<D: AuthDeps>(
-//     deps: &D,
-//     user_id: Uuid,
-//     payload: CompleteProfileRequest,
-// ) -> Result<CompleteProfileResponse, AppError> {
-//     info!("User {} is completing their profile", user_id);
+pub async fn resend_verification<D: AuthDeps>(
+    deps: &D,
+    payload: ResendVerificationRequest,
+) -> Result<ResendVerificationResponse, AppError> {
+    info!("Service: Attempting to resend verification email for: {}", payload.email);
 
-//     let user_record = user::Entity::find_by_id(user_id)
-//         .one(deps.db())
-//         .await
-//         .map_err(|e| {
-//             error!("Database error finding user {}: {:?}", user_id, e);
-//             AppError::InternalServerError
-//         })?
-//         .ok_or_else(|| {
-//             AppError::Unauthorized
-//         })?;
+    let user_record = user::Entity::find()
+        .filter(user::Column::Email.eq(&payload.email))
+        .one(deps.db())
+        .await
+        .map_err(|e| {
+            error!("Database error during resend verification lookup: {:?}", e);
+            AppError::InternalServerError
+        })?;
 
-//     let mut active_user: user::ActiveModel = user_record.into();
+    let user = match user_record {
+        Some(u) => u,
+        None => {
+            info!("Resend ignored: No account found for {}", payload.email);
+            return Ok(ResendVerificationResponse(MessageResponse {
+                message: String::from("If your account exists and is unverified, a new email has been sent.")
+            }));
+        }
+    };
 
-//     active_user.username = Set(payload.username.clone());
-//     active_user.full_name = Set(payload.full_name);
-//     active_user.phone = Set(payload.phone);
-//     active_user.school_id = Set(payload.school_id);
-//     active_user.student_id = Set(payload.student_id);
-//     active_user.updated_at = Set(Utc::now());
+    if user.verified_at.is_some() {
+        info!("Resend ignored: Account {} is already verified", payload.email);
+        return Ok(ResendVerificationResponse(MessageResponse {
+            message: String::from("Account is already verified.")
+        }));
+    }
 
-//     active_user.update(deps.db()).await.map_err(|e| {
-//         error!("Failed to update profile for user {}: {:?}", user_id, e);
+    let expiration = Utc::now().checked_add_signed(chrono::Duration::hours(24)).unwrap().timestamp() as usize;
 
-//         // Graceful duplicate key handling
-//         let err_str = e.to_string().to_lowercase();
-//         if err_str.contains("unique constraint") || err_str.contains("duplicate key") {
-//             if err_str.contains("username") {
-//                 return AppError::Conflict("That username is already taken.".to_string());
-//             }
-//             if err_str.contains("phone") {
-//                 return AppError::Conflict("That phone number is already registered.".to_string());
-//             }
-//         }
+    let claims = EmailVerifyClaims {
+        sub: user.id,
+        exp: expiration,
+        purpose: String::from("email_verification"),
+    };
 
-//         AppError::InternalServerError
-//     })?;
+    let verify_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(deps.jwt().secret.as_bytes())
+    ).map_err(|e| {
+        error!("Failed to generate verification token: {:?}", e);
+        AppError::InternalServerError
+    })?;
 
-//     info!("User {} successfully completed their profile", user_id);
+    let deep_link = format!("{}/auth/verify-email?token={}", deps.server_url(), verify_token);
 
-//     Ok(CompleteProfileResponse(MessageResponse {
-//         message: String::from("Profile successfully completed! Welcome to StuPass."),
-//     }))
-// }
+    if let Err(e) = deps.email_service().send_verification_email(&payload.email, &deep_link).await {
+        error!("Failed to resend verification email via service: {:?}", e);
+    }
 
-// pub async fn resend_verification<D: AuthDeps>(
-//     deps: &D,
-//     payload: ResendVerificationRequest,
-// ) -> Result<ResendVerificationResponse, AppError> {
-//     info!("Service: Attempting to resend verification email for: {}", payload.email);
-
-//     let user_record = user::Entity::find()
-//         .filter(user::Column::Email.eq(&payload.email))
-//         .one(deps.db())
-//         .await
-//         .map_err(|e| {
-//             error!("Database error during resend verification lookup: {:?}", e);
-//             AppError::InternalServerError
-//         })?;
-
-//     let user = match user_record {
-//         Some(u) => u,
-//         None => {
-//             info!("Resend ignored: No account found for {}", payload.email);
-//             return Ok(ResendVerificationResponse(MessageResponse {
-//                 message: String::from("If your account exists and is unverified, a new email has been sent.")
-//             }));
-//         }
-//     };
-
-//     if user.verified_at.is_some() {
-//         info!("Resend ignored: Account {} is already verified", payload.email);
-//         return Ok(ResendVerificationResponse(MessageResponse {
-//             message: String::from("Account is already verified.")
-//         }));
-//     }
-
-//     let expiration = Utc::now().checked_add_signed(chrono::Duration::hours(24)).unwrap().timestamp() as usize;
-
-//     let claims = EmailVerifyClaims {
-//         sub: user.id,
-//         exp: expiration,
-//         purpose: String::from("email_verification"),
-//     };
-
-//     let verify_token = encode(
-//         &Header::default(),
-//         &claims,
-//         &EncodingKey::from_secret(deps.jwt().secret.as_bytes())
-//     ).map_err(|e| {
-//         error!("Failed to generate verification token: {:?}", e);
-//         AppError::InternalServerError
-//     })?;
-
-//     let deep_link = format!("{}/auth/verify-email?token={}", deps.server_url(), verify_token);
-
-//     if let Err(e) = deps.email_service().send_verification_email(&payload.email, &deep_link).await {
-//         error!("Failed to resend verification email via service: {:?}", e);
-//     }
-
-//     Ok(ResendVerificationResponse(MessageResponse {
-//         message: String::from("If your account exists and is unverified, a new email has been sent.")
-//     }))
-// }
+    Ok(ResendVerificationResponse(MessageResponse {
+        message: String::from("If your account exists and is unverified, a new email has been sent.")
+    }))
+}

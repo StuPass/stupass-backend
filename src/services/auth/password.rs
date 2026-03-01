@@ -37,7 +37,7 @@ pub async fn reset_password<D: AuthDeps>(
     // --- 2. Begin transaction early for atomic token validation ---
     let txn = deps.db().begin().await.map_err(|e| {
         error!("Failed to begin transaction: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     // --- 3. Find and lock the reset token record within transaction ---
@@ -50,7 +50,7 @@ pub async fn reset_password<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during reset token lookup: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             info!("Invalid password reset token");
@@ -88,11 +88,11 @@ pub async fn reset_password<D: AuthDeps>(
     .await
     .map_err(|e| {
         error!("Thread pool error during password hashing: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?
     .map_err(|e| {
         error!("Failed to hash new password: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     // --- 7. Find the "Password" provider ---
@@ -102,11 +102,11 @@ pub async fn reset_password<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during auth provider lookup: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             error!("Auth provider 'Password' not found in database");
-            AppError::InternalServerError(String::from("Auth provider 'Password' not found"))
+            AppError::InternalServerError
         })?
         .id;
 
@@ -118,11 +118,11 @@ pub async fn reset_password<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during credential lookup: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             error!("No password credential found for user {}", user_id);
-            AppError::InternalServerError(String::from("No password credential found for user"))
+            AppError::InternalServerError
         })?;
 
     let mut cred_active: credential::ActiveModel = credential_record.into();
@@ -131,7 +131,7 @@ pub async fn reset_password<D: AuthDeps>(
 
     cred_active.update(&txn).await.map_err(|e| {
         error!("Failed to update credential: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     // --- 9. Mark reset token as used ---
@@ -140,7 +140,7 @@ pub async fn reset_password<D: AuthDeps>(
 
     token_active.update(&txn).await.map_err(|e| {
         error!("Failed to mark reset token as used: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     // --- 10. Invalidate all sessions for this user (security measure) ---
@@ -150,7 +150,7 @@ pub async fn reset_password<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Failed to invalidate sessions: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?;
 
     info!(
@@ -161,7 +161,7 @@ pub async fn reset_password<D: AuthDeps>(
     // --- 11. Commit transaction ---
     txn.commit().await.map_err(|e| {
         error!("Failed to commit transaction: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     info!("Successfully reset password for user {}", user_id);

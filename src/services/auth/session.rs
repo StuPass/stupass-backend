@@ -23,7 +23,7 @@ pub async fn refresh_session<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during session lookup: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?
         .ok_or_else(|| {
             info!("Attempted to refresh with invalid or expired token.");
@@ -62,7 +62,7 @@ pub async fn refresh_session<D: AuthDeps>(
 
     active_session.update(deps.db()).await.map_err(|e| {
         error!("Failed to update session: {:?}", e);
-        AppError::InternalServerError(e.to_string())
+        AppError::InternalServerError
     })?;
 
     // Return the new pair to the user
@@ -91,7 +91,7 @@ pub async fn invalidate_session<D: AuthDeps>(
         .await
         .map_err(|e| {
             error!("Database error during logout: {:?}", e);
-            AppError::InternalServerError(e.to_string())
+            AppError::InternalServerError
         })?;
 
     if result.rows_affected == 0 {
