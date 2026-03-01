@@ -29,8 +29,8 @@ async fn login_with_email() {
     .await;
 
     assert_eq!(status, 200);
-    assert!(body.tokens.access_token.len() > 0);
-    assert!(body.tokens.refresh_token.len() > 0);
+    assert!(!body.tokens.access_token.is_empty());
+    assert!(!body.tokens.refresh_token.is_empty());
     assert_eq!(body.tokens.expires_in, 3600);
 
     // Verify session created in DB

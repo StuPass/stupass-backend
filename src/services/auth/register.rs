@@ -112,7 +112,6 @@ pub async fn register_user<D: AuthDeps>(
         user_id: Set(inserted_user.id),
         created_at: Set(now),
         updated_at: Set(now),
-        ..Default::default()
     };
 
     new_credential.insert(&txn).await.map_err(|e| {
@@ -267,7 +266,7 @@ pub async fn check_status<D: AuthDeps>(
         })?;
 
     // If student_id is not pending, they have finished onboarding
-    let profile_completed = user_record.student_id != String::from("pending");
+    let profile_completed = user_record.student_id != "pending";
 
     Ok(CheckStatusResponse {
         verification_status: user_record.verification_status,

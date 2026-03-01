@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -28,7 +30,7 @@ impl RateLimiter {
 
         let mut requests = match self.requests.lock() {
             Ok(guard) => guard,
-            Err(poisoned) => {
+            Err(_poisoned) => {
                 warn!(
                     "RateLimiter mutex poisoned; denying password reset request for {}",
                     email

@@ -3,5 +3,5 @@ pub mod credential;
 pub mod user;
 
 pub use auth_provider::seed_auth_provider;
-pub use credential::{seed_credentials, CredentialRecord, CredentialSeedConfig};
-pub use user::{seed_users, UserSeedConfig};
+pub use credential::{CredentialRecord, CredentialSeedConfig, seed_credentials};
+pub use user::{UserSeedConfig, seed_users};

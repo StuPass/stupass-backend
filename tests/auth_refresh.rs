@@ -27,8 +27,8 @@ async fn refresh_happy_path() {
     .await;
 
     assert_eq!(status, 200);
-    assert!(body.tokens.access_token.len() > 0);
-    assert!(body.tokens.refresh_token.len() > 0);
+    assert!(!body.tokens.access_token.is_empty());
+    assert!(!body.tokens.refresh_token.is_empty());
 
     // Old token should be invalidated (rotated) - new token is different
     assert_ne!(body.tokens.refresh_token, old_refresh_token);
@@ -119,12 +119,8 @@ async fn refresh_session_count_remains_same() {
         .route("/auth/refresh", post(auth::refresh))
         .with_state(ctx.state.clone());
 
-    let _: (u16, RefreshResponse) = post_json(
-        &app,
-        "/auth/refresh",
-        json!({ "refresh_token": token }),
-    )
-    .await;
+    let _: (u16, RefreshResponse) =
+        post_json(&app, "/auth/refresh", json!({ "refresh_token": token })).await;
 
     let count_after = session::Entity::find()
         .filter(session::Column::UserId.eq(user.id))
@@ -150,20 +146,12 @@ async fn refresh_does_not_affect_other_sessions() {
         .with_state(ctx.state.clone());
 
     // Refresh first session
-    let _: (u16, RefreshResponse) = post_json(
-        &app,
-        "/auth/refresh",
-        json!({ "refresh_token": token1 }),
-    )
-    .await;
+    let _: (u16, RefreshResponse) =
+        post_json(&app, "/auth/refresh", json!({ "refresh_token": token1 })).await;
 
     // Second session should still be usable
-    let (status, _): (u16, RefreshResponse) = post_json(
-        &app,
-        "/auth/refresh",
-        json!({ "refresh_token": token2 }),
-    )
-    .await;
+    let (status, _): (u16, RefreshResponse) =
+        post_json(&app, "/auth/refresh", json!({ "refresh_token": token2 })).await;
 
     assert_eq!(status, 200);
 }
@@ -178,12 +166,8 @@ async fn refresh_new_tokens_differ_from_old() {
         .route("/auth/refresh", post(auth::refresh))
         .with_state(ctx.state.clone());
 
-    let (_, body): (u16, RefreshResponse) = post_json(
-        &app,
-        "/auth/refresh",
-        json!({ "refresh_token": old_token }),
-    )
-    .await;
+    let (_, body): (u16, RefreshResponse) =
+        post_json(&app, "/auth/refresh", json!({ "refresh_token": old_token })).await;
 
     assert_ne!(body.tokens.refresh_token, old_token);
     assert!(!body.tokens.access_token.is_empty());
@@ -197,12 +181,8 @@ async fn refresh_empty_string_token_returns_unauthorized() {
         .route("/auth/refresh", post(auth::refresh))
         .with_state(ctx.state);
 
-    let (status, _): (u16, ErrorResponse) = post_json(
-        &app,
-        "/auth/refresh",
-        json!({ "refresh_token": "" }),
-    )
-    .await;
+    let (status, _): (u16, ErrorResponse) =
+        post_json(&app, "/auth/refresh", json!({ "refresh_token": "" })).await;
 
     assert_eq!(status, 401);
 }
@@ -217,12 +197,8 @@ async fn refresh_preserves_correct_expiry_in_response() {
         .route("/auth/refresh", post(auth::refresh))
         .with_state(ctx.state.clone());
 
-    let (_, body): (u16, RefreshResponse) = post_json(
-        &app,
-        "/auth/refresh",
-        json!({ "refresh_token": token }),
-    )
-    .await;
+    let (_, body): (u16, RefreshResponse) =
+        post_json(&app, "/auth/refresh", json!({ "refresh_token": token })).await;
 
     assert_eq!(
         body.tokens.expires_in, 3600,
@@ -279,12 +255,8 @@ async fn refresh_access_token_is_valid_jwt() {
         .route("/auth/refresh", post(auth::refresh))
         .with_state(ctx.state.clone());
 
-    let (_, body): (u16, RefreshResponse) = post_json(
-        &app,
-        "/auth/refresh",
-        json!({ "refresh_token": token }),
-    )
-    .await;
+    let (_, body): (u16, RefreshResponse) =
+        post_json(&app, "/auth/refresh", json!({ "refresh_token": token })).await;
 
     let parts: Vec<&str> = body.tokens.access_token.split('.').collect();
     assert_eq!(
