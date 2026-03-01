@@ -26,10 +26,17 @@ impl RateLimiter {
         const MAX_REQUESTS: usize = 3;
         const WINDOW_HOURS: i64 = 1;
 
-        let mut requests = self.requests.lock().map_err(|e| {
-            error!("Rate limiter mutex is poisoned: {}", e);
-            AppError::InternalServerError("Could not access rate limiter state".to_string())
-        })?;
+        let mut requests = match self.requests.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                warn!(
+                    "RateLimiter mutex poisoned; denying password reset request for {}",
+                    email
+                );
+                // Fail closed: treat as fully rate limited for the full window duration
+                return Err((WINDOW_HOURS * 3600) as u64);
+            }
+        };
         let now = Utc::now();
 
         let entry = requests.entry(email.to_lowercase()).or_insert((0, now));
