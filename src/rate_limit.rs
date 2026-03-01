@@ -26,7 +26,10 @@ impl RateLimiter {
         const MAX_REQUESTS: usize = 3;
         const WINDOW_HOURS: i64 = 1;
 
-        let mut requests = self.requests.lock().unwrap();
+        let mut requests = self.requests.lock().map_err(|e| {
+            error!("Rate limiter mutex is poisoned: {}", e);
+            AppError::InternalServerError("Could not access rate limiter state".to_string())
+        })?;
         let now = Utc::now();
 
         let entry = requests.entry(email.to_lowercase()).or_insert((0, now));
