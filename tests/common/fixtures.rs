@@ -149,7 +149,7 @@ fn hash_token(token: &str) -> String {
 /// Generate a random test token
 fn generate_test_token() -> String {
     let mut bytes = [0u8; 48];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     URL_SAFE_NO_PAD.encode(bytes)
 }
 

@@ -78,9 +78,7 @@ impl EmailService for MockEmailService {
         verification_link: &str,
     ) -> Result<(), AppError> {
         if *self.should_fail.lock().unwrap() {
-            return Err(AppError::InternalServerError(String::from(
-                "Failed to send verification email",
-            )));
+            return Err(AppError::InternalServerError);
         }
 
         self.calls.lock().unwrap().push(EmailCall {
@@ -93,9 +91,7 @@ impl EmailService for MockEmailService {
 
     async fn send_password_reset_email(&self, to: &str, reset_link: &str) -> Result<(), AppError> {
         if *self.should_fail.lock().unwrap() {
-            return Err(AppError::InternalServerError(String::from(
-                "Failed to send password reset email",
-            )));
+            return Err(AppError::InternalServerError);
         }
 
         self.calls.lock().unwrap().push(EmailCall {
