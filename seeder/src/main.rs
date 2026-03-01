@@ -3,7 +3,7 @@ use clap::Parser;
 use dialoguer::Input;
 use sea_orm::Database;
 use seeder::{
-    seed_auth_provider, seed_credentials, seed_users, CredentialSeedConfig, UserSeedConfig,
+    CredentialSeedConfig, UserSeedConfig, seed_auth_provider, seed_credentials, seed_users,
 };
 use serde_json::to_string_pretty;
 use std::path::PathBuf;

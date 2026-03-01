@@ -18,9 +18,9 @@ use crate::{
 pub async fn authenticate_user<D: AuthDeps>(
     deps: &D,
     req: LoginRequest,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
 ) -> Result<LoginResponse, AppError> {
-    // TODO: Add ConnectInfo argument
-
     let LoginRequest {
         identifier,
         password,
@@ -100,8 +100,8 @@ pub async fn authenticate_user<D: AuthDeps>(
 
     let new_session = session::ActiveModel {
         session_token_hash: Set(refresh_token_hash),
-        ip_address: Set(None), // TODO: Extract IP from request or headers
-        user_agent: Set(None), // TODO: Extract User-Agent from request headers
+        ip_address: Set(ip_address),
+        user_agent: Set(user_agent),
         valid_from: Set(now),
         expires_at: Set(expires_at),
         last_refresh: Set(now),

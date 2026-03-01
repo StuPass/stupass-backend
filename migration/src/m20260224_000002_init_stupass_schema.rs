@@ -6,7 +6,6 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        
         // ==========================================
         // 1. Administrative Location Tables
         // ==========================================
@@ -48,7 +47,7 @@ impl MigrationTrait for Migration {
             .await?;
 
         // ==========================================
-        // 3. The Unified "Listing" Table 
+        // 3. The Unified "Listing" Table
         // ==========================================
         manager
             .create_table(
@@ -68,8 +67,16 @@ impl MigrationTrait for Migration {
                     .col(string_null(Listing::StreetAddress))
                     .col(string(Listing::Status).not_null().default("available"))
                     .col(uuid(Listing::SellerId).not_null())
-                    .col(timestamp(CreatedAt).not_null().default(Expr::current_timestamp()))
-                    .col(timestamp(UpdatedAt).not_null().default(Expr::current_timestamp()))
+                    .col(
+                        timestamp(CreatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        timestamp(UpdatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
                     .col(timestamp_null(DeletedAt))
                     .foreign_key(
                         ForeignKey::create()
@@ -119,8 +126,16 @@ impl MigrationTrait for Migration {
                     .col(uuid_null(Report::ListingId))
                     .col(uuid(Report::ReporterId).not_null())
                     .col(uuid(Report::ReportedUserId).not_null())
-                    .col(timestamp(CreatedAt).not_null().default(Expr::current_timestamp()))
-                    .col(timestamp(UpdatedAt).not_null().default(Expr::current_timestamp()))
+                    .col(
+                        timestamp(CreatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        timestamp(UpdatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-report-listing")
@@ -162,8 +177,16 @@ impl MigrationTrait for Migration {
                     .col(integer(Review::ScoreAdded).not_null().default(0))
                     .col(uuid(Review::WriterId).not_null())
                     .col(uuid(Review::ReceiverId).not_null())
-                    .col(timestamp(CreatedAt).not_null().default(Expr::current_timestamp()))
-                    .col(timestamp(UpdatedAt).not_null().default(Expr::current_timestamp()))
+                    .col(
+                        timestamp(CreatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        timestamp(UpdatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-review-writer")
@@ -206,12 +229,24 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-        manager.drop_table(Table::drop().table(Review::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(Report::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(Listing::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(Condition::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(Category::Table).to_owned()).await?;
-        manager.drop_table(Table::drop().table(City::Table).to_owned()).await?;
+        manager
+            .drop_table(Table::drop().table(Review::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Report::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Listing::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Condition::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(Category::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(City::Table).to_owned())
+            .await?;
         Ok(())
     }
 }

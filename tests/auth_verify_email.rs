@@ -135,7 +135,7 @@ async fn verify_email_wrong_purpose_token() {
 
     assert_eq!(status, 200);
     assert!(
-        body.contains("Invalid Link"),
+        body.contains("Verification Failed"),
         "Expected invalid link HTML for wrong purpose, got: {}",
         body
     );

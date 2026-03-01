@@ -15,17 +15,20 @@ pub struct MessageResponse<T> {
 // JWT Claims
 // ============================================================================
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct Claims {
     pub sub: String, // user_id
-    pub exp: usize,  // expiration (Unix timestamp)
-    pub iat: usize,  // issued at (Unix timestamp)
+    #[validate(range(min = 0, message = "Timestamp must be a positive integer"))]
+    pub exp: i64, // expiration (Unix timestamp)
+    #[validate(range(min = 0, message = "Timestamp must be a positive integer"))]
+    pub iat: i64, // issued at (Unix timestamp)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct EmailVerifyClaims {
     pub sub: Uuid,
-    pub exp: usize,
+    #[validate(range(min = 0, message = "Timestamp must be a positive integer"))]
+    pub exp: i64,
     pub purpose: String,
 }
 
@@ -197,13 +200,11 @@ pub struct Unauthorized(pub MessageResponse<String>);
 #[response(status = 409)]
 pub struct Conflict(pub MessageResponse<String>);
 
-// TODO: Assess variant redundancy
 // Enums
 pub enum VerifyEmailOutcome {
     Success,
     AlreadyVerified,
     InvalidOrExpiredToken,
-    InvalidTokenPurpose,
     UserNotFound,
     DatabaseError,
 }

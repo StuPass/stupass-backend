@@ -19,6 +19,10 @@ async fn send_post(app: &Router, path: &str, body: Value) -> (u16, Vec<u8>) {
                 .method(Method::POST)
                 .uri(path)
                 .header(header::CONTENT_TYPE, "application/json")
+                .extension(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                    [127, 0, 0, 1],
+                    8080,
+                ))))
                 .body(Body::from(serde_json::to_string(&body).unwrap()))
                 .unwrap(),
         )
@@ -72,6 +76,10 @@ pub async fn post_json_raw(app: &Router, path: &str, body: Value) -> (StatusCode
                 .method(Method::POST)
                 .uri(path)
                 .header(header::CONTENT_TYPE, "application/json")
+                .extension(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                    [127, 0, 0, 1],
+                    8080,
+                ))))
                 .body(Body::from(serde_json::to_string(&body).unwrap()))
                 .unwrap(),
         )
@@ -93,6 +101,10 @@ pub async fn get_with_query<T: DeserializeOwned>(app: &Router, path: &str) -> (u
             Request::builder()
                 .method(Method::GET)
                 .uri(path)
+                .extension(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                    [127, 0, 0, 1],
+                    8080,
+                ))))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -114,6 +126,10 @@ pub async fn get_raw(app: &Router, path: &str) -> (u16, String) {
             Request::builder()
                 .method(Method::GET)
                 .uri(path)
+                .extension(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                    [127, 0, 0, 1],
+                    8080,
+                ))))
                 .body(Body::empty())
                 .unwrap(),
         )

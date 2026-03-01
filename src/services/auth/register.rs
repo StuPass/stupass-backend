@@ -12,8 +12,10 @@ use tracing::{debug, error, info};
 use crate::{
     entities::{auth_provider, credential, prelude::AuthProvider, user},
     errors::AppError,
-    models::auth::{EmailVerifyClaims, RegisterRequest, RegisterResponse, VerifyEmailOutcome,
-                   ResendVerificationRequest, ResendVerificationResponse, CheckStatusResponse, MessageResponse},
+    models::auth::{
+        CheckStatusResponse, EmailVerifyClaims, MessageResponse, RegisterRequest, RegisterResponse,
+        ResendVerificationRequest, ResendVerificationResponse, VerifyEmailOutcome,
+    },
     services::auth::AuthDeps,
 };
 
@@ -110,7 +112,6 @@ pub async fn register_user<D: AuthDeps>(
         user_id: Set(inserted_user.id),
         created_at: Set(now),
         updated_at: Set(now),
-        ..Default::default()
     };
 
     new_credential.insert(&txn).await.map_err(|e| {
@@ -131,11 +132,10 @@ pub async fn register_user<D: AuthDeps>(
     // Generate Verification Token & Send Email
     // ==========================================
 
-    // 1. Create a 24-hour expiration token
     let expiration = Utc::now()
         .checked_add_signed(chrono::Duration::hours(24))
         .expect("valid timestamp")
-        .timestamp() as usize;
+        .timestamp();
 
     let claims = EmailVerifyClaims {
         sub: inserted_user.id,
@@ -210,7 +210,7 @@ pub async fn verify_email<D: AuthDeps>(deps: &D, token: &str) -> VerifyEmailOutc
 
     if token_data.claims.purpose != "email_verification" {
         error!("Attempted to use invalid token purpose for email verification");
-        return VerifyEmailOutcome::InvalidTokenPurpose;
+        return VerifyEmailOutcome::InvalidOrExpiredToken;
     }
 
     let user_id = token_data.claims.sub;
@@ -254,7 +254,10 @@ pub async fn check_status<D: AuthDeps>(
         .one(deps.db())
         .await
         .map_err(|e| {
-            error!("Database error checking status for user {}: {:?}", user_id, e);
+            error!(
+                "Database error checking status for user {}: {:?}",
+                user_id, e
+            );
             AppError::InternalServerError
         })?
         .ok_or_else(|| {
@@ -263,7 +266,7 @@ pub async fn check_status<D: AuthDeps>(
         })?;
 
     // If student_id is not pending, they have finished onboarding
-    let profile_completed = user_record.student_id != String::from("pending");
+    let profile_completed = user_record.student_id != "pending";
 
     Ok(CheckStatusResponse {
         verification_status: user_record.verification_status,
@@ -275,7 +278,10 @@ pub async fn resend_verification<D: AuthDeps>(
     deps: &D,
     payload: ResendVerificationRequest,
 ) -> Result<ResendVerificationResponse, AppError> {
-    info!("Service: Attempting to resend verification email for: {}", payload.email);
+    info!(
+        "Service: Attempting to resend verification email for: {}",
+        payload.email
+    );
 
     let user_record = user::Entity::find()
         .filter(user::Column::Email.eq(&payload.email))
@@ -291,19 +297,27 @@ pub async fn resend_verification<D: AuthDeps>(
         None => {
             info!("Resend ignored: No account found for {}", payload.email);
             return Ok(ResendVerificationResponse(MessageResponse {
-                message: String::from("If your account exists and is unverified, a new email has been sent.")
+                message: String::from(
+                    "If your account exists and is unverified, a new email has been sent.",
+                ),
             }));
         }
     };
 
     if user.verified_at.is_some() {
-        info!("Resend ignored: Account {} is already verified", payload.email);
+        info!(
+            "Resend ignored: Account {} is already verified",
+            payload.email
+        );
         return Ok(ResendVerificationResponse(MessageResponse {
-            message: String::from("Account is already verified.")
+            message: String::from("Account is already verified."),
         }));
     }
 
-    let expiration = Utc::now().checked_add_signed(chrono::Duration::hours(24)).unwrap().timestamp() as usize;
+    let expiration = Utc::now()
+        .checked_add_signed(chrono::Duration::hours(24))
+        .unwrap()
+        .timestamp();
 
     let claims = EmailVerifyClaims {
         sub: user.id,
@@ -314,19 +328,30 @@ pub async fn resend_verification<D: AuthDeps>(
     let verify_token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(deps.jwt().secret.as_bytes())
-    ).map_err(|e| {
+        &EncodingKey::from_secret(deps.jwt().secret.as_bytes()),
+    )
+    .map_err(|e| {
         error!("Failed to generate verification token: {:?}", e);
         AppError::InternalServerError
     })?;
 
-    let deep_link = format!("{}/auth/verify-email?token={}", deps.server_url(), verify_token);
+    let deep_link = format!(
+        "{}/auth/verify-email?token={}",
+        deps.server_url(),
+        verify_token
+    );
 
-    if let Err(e) = deps.email_service().send_verification_email(&payload.email, &deep_link).await {
+    if let Err(e) = deps
+        .email_service()
+        .send_verification_email(&payload.email, &deep_link)
+        .await
+    {
         error!("Failed to resend verification email via service: {:?}", e);
     }
 
     Ok(ResendVerificationResponse(MessageResponse {
-        message: String::from("If your account exists and is unverified, a new email has been sent.")
+        message: String::from(
+            "If your account exists and is unverified, a new email has been sent.",
+        ),
     }))
 }

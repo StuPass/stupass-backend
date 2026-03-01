@@ -83,25 +83,27 @@ pub async fn seed_credentials(
         .collect();
 
     // Phase 2: Parallel hashing with argon2 (CPU-bound)
-    let hashed: Vec<HashedCredential> = inputs
+    let hashed: Result<Vec<HashedCredential>> = inputs
         .into_par_iter()
         .map(|input| {
             let salt = SaltString::generate(&mut OsRng);
             let argon2 = Argon2::default();
-            // TODO: More graceful error handling
+
             let hashed = argon2
                 .hash_password(input.password.as_bytes(), &salt)
-                .expect("Failed to hash password")
+                .map_err(|e| anyhow::anyhow!("Failed to hash password: {}", e))?
                 .to_string();
 
-            HashedCredential {
+            Ok(HashedCredential {
                 user_id: input.user_id,
                 identifier: input.identifier,
                 password: input.password,
                 hashed,
-            }
+            })
         })
         .collect();
+
+    let hashed = hashed?;
 
     // Phase 3: Build models and records
     let now = Utc::now();

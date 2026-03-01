@@ -238,6 +238,7 @@ enum Credential {
 }
 
 #[derive(DeriveIden)]
+#[allow(clippy::enum_variant_names)]
 enum Session {
     Table,
     Id,

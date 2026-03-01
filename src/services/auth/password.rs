@@ -235,7 +235,18 @@ pub async fn send_forgot_password_email<D: AuthDeps>(
     let now = Utc::now();
     let expires_at = now + Duration::hours(1);
 
-    // --- 4. Store token hash in database ---
+    // --- 4. Invalidate any existing unused reset tokens for this user ---
+    if let Err(e) = PasswordResetToken::delete_many()
+        .filter(password_reset_token::Column::UserId.eq(user.id))
+        .filter(password_reset_token::Column::UsedAt.is_null())
+        .exec(deps.db())
+        .await
+    {
+        error!("Failed to invalidate previous reset tokens: {:?}", e);
+        // Continue anyway; worst case they have multiple valid tokens, but typically this succeeds
+    }
+
+    // --- 5. Store token hash in database ---
     let new_reset_token = password_reset_token::ActiveModel {
         reset_token_hash: Set(reset_token_hash),
         created_at: Set(now),

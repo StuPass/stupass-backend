@@ -1,9 +1,10 @@
+#![allow(clippy::type_complexity)]
+
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tracing::warn;
 
-// TODO: Implement eviction for old entries
 /// Tracks password reset request attempts per email address
 #[derive(Debug, Clone)]
 pub struct RateLimiter {
@@ -29,7 +30,7 @@ impl RateLimiter {
 
         let mut requests = match self.requests.lock() {
             Ok(guard) => guard,
-            Err(poisoned) => {
+            Err(_poisoned) => {
                 warn!(
                     "RateLimiter mutex poisoned; denying password reset request for {}",
                     email

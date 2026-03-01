@@ -84,12 +84,8 @@ async fn logout_only_invalidates_target_session() {
         .with_state(ctx.state.clone());
 
     // Logout with first token
-    let (status, _): (u16, LogoutResponse) = post_json(
-        &app,
-        "/auth/logout",
-        json!({ "refresh_token": token1 }),
-    )
-    .await;
+    let (status, _): (u16, LogoutResponse) =
+        post_json(&app, "/auth/logout", json!({ "refresh_token": token1 })).await;
 
     assert_eq!(status, 200);
 
@@ -113,20 +109,12 @@ async fn logout_same_token_twice_is_idempotent() {
         .with_state(ctx.state.clone());
 
     // First logout
-    let (status1, _): (u16, LogoutResponse) = post_json(
-        &app,
-        "/auth/logout",
-        json!({ "refresh_token": token }),
-    )
-    .await;
+    let (status1, _): (u16, LogoutResponse) =
+        post_json(&app, "/auth/logout", json!({ "refresh_token": token })).await;
 
     // Second logout with same token
-    let (status2, _): (u16, LogoutResponse) = post_json(
-        &app,
-        "/auth/logout",
-        json!({ "refresh_token": token }),
-    )
-    .await;
+    let (status2, _): (u16, LogoutResponse) =
+        post_json(&app, "/auth/logout", json!({ "refresh_token": token })).await;
 
     assert_eq!(status1, 200);
     assert_eq!(status2, 200);
@@ -146,12 +134,8 @@ async fn logout_does_not_affect_other_users_sessions() {
         .with_state(ctx.state.clone());
 
     // Logout user1
-    let _: (u16, LogoutResponse) = post_json(
-        &app,
-        "/auth/logout",
-        json!({ "refresh_token": token1 }),
-    )
-    .await;
+    let _: (u16, LogoutResponse) =
+        post_json(&app, "/auth/logout", json!({ "refresh_token": token1 })).await;
 
     // User2's session should still exist
     let count = Session::find()
@@ -170,12 +154,8 @@ async fn logout_empty_string_token_returns_success() {
         .route("/auth/logout", post(auth::logout))
         .with_state(ctx.state);
 
-    let (status, _): (u16, LogoutResponse) = post_json(
-        &app,
-        "/auth/logout",
-        json!({ "refresh_token": "" }),
-    )
-    .await;
+    let (status, _): (u16, LogoutResponse) =
+        post_json(&app, "/auth/logout", json!({ "refresh_token": "" })).await;
 
     assert_eq!(status, 200);
 }

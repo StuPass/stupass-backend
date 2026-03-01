@@ -11,7 +11,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use stupass_backend::entities::{password_reset_token, prelude::*, session};
 use stupass_backend::handlers::auth::{self};
-use stupass_backend::models::auth::{LoginResponse, ResetPasswordResponse};
+use stupass_backend::models::auth::{ForgotPasswordResponse, LoginResponse, ResetPasswordResponse};
 
 #[tokio::test]
 async fn reset_password_happy_path() {
@@ -405,33 +405,61 @@ async fn reset_password_can_login_with_new_password_after_reset() {
 // TODO: Change reset password flow to restrict and invalidate old token when new token is requested,
 // TODO: ensuring only one token is active at any given time
 #[tokio::test]
-async fn reset_password_multiple_tokens_only_first_used_works() {
+async fn reset_password_multiple_tokens_only_newest_used_works() {
     let ctx = TestContext::new().await;
-    let user = create_test_user(&ctx.db, "testuser", "test@example.com", "password").await;
-
-    // Create two reset tokens
-    let token1 = create_password_reset_token(&ctx.db, user.id, 1, false).await;
-    let token2 = create_password_reset_token(&ctx.db, user.id, 1, false).await;
+    let _user = create_test_user(&ctx.db, "testuser", "test@example.com", "password").await;
 
     let app = Router::new()
+        .route("/auth/forgot-password", post(auth::forgot_password))
         .route("/auth/reset-password", post(auth::reset_password))
         .with_state(ctx.state.clone());
 
-    // Use first token
-    let (status1, _): (u16, ResetPasswordResponse) = post_json(
+    // Request first token
+    let (status1, _): (u16, ForgotPasswordResponse) = post_json(
+        &app,
+        "/auth/forgot-password",
+        json!({ "email": "test@example.com" }),
+    )
+    .await;
+    assert_eq!(status1, 200);
+
+    let calls1 = ctx.email_service.get_calls();
+    assert_eq!(calls1.len(), 1);
+    let token1_link = &calls1[0].link;
+    let token1 = token1_link.split("token=").last().unwrap().to_string();
+
+    // Request second token
+    let (status2, _): (u16, ForgotPasswordResponse) = post_json(
+        &app,
+        "/auth/forgot-password",
+        json!({ "email": "test@example.com" }),
+    )
+    .await;
+    assert_eq!(status2, 200);
+
+    let calls2 = ctx.email_service.get_calls();
+    assert_eq!(calls2.len(), 2);
+    let token2_link = &calls2[1].link;
+    let token2 = token2_link.split("token=").last().unwrap().to_string();
+
+    // The FIRST token should now be INVALID (because it was superseded by token 2)
+    let (status_reset1, _): (u16, ErrorResponse) = post_json(
         &app,
         "/auth/reset-password",
         json!({ "token": token1, "new_password": "new12345678" }),
     )
     .await;
-    assert_eq!(status1, 200);
+    assert_eq!(
+        status_reset1, 400,
+        "The first reset token should be invalidated"
+    );
 
-    // Second token should still be valid (it's a different token)
-    let (status2, _): (u16, ResetPasswordResponse) = post_json(
+    // The SECOND token should STILL BE VALID
+    let (status_reset2, _): (u16, ResetPasswordResponse) = post_json(
         &app,
         "/auth/reset-password",
         json!({ "token": token2, "new_password": "new12345678" }),
     )
     .await;
-    assert_eq!(status2, 200);
+    assert_eq!(status_reset2, 200, "The second reset token should succeed");
 }
