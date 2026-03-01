@@ -35,6 +35,7 @@ pub fn generate_access_token(
     let now = Utc::now();
     let exp = now + Duration::seconds(expiry_seconds);
 
+    // TODO: Investigate try_into/i64 type for safer exp/iat dtype
     let claims = Claims {
         sub: user_id.to_string(),
         exp: exp.timestamp() as usize,
