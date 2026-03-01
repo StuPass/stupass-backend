@@ -95,7 +95,7 @@ pub async fn login(
     let ip_address = headers
         .get("x-forwarded-for")
         .and_then(|h| h.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or("").trim().to_string())
+        .and_then(|s| s.split(',').map(str::trim).find(|s| !s.is_empty()).map(str::to_string))
         .unwrap_or_else(|| addr.ip().to_string());
 
     let user_agent = headers
