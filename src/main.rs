@@ -167,11 +167,8 @@ async fn main() {
         .await
         .expect("Failed to bind to address");
 
-    tracing::info!(
-        "Server listening on http://127.0.0.1:3000 (http://{})",
-        socket_addr
-    );
-    tracing::info!("API docs available at http://127.0.0.1:3000/");
+    tracing::info!("Server listening on http://{}", socket_addr);
+    tracing::info!("API docs available at http://{}/", socket_addr);
 
     axum::serve(listener, app).await.expect("Server error");
 }
