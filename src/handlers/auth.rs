@@ -1,6 +1,7 @@
+use crate::extractors::validation::ValidJson;
 use axum::{
     Json,
-    extract::{Query, State, Path},
+    extract::{Path, Query, State},
     response::Html,
 };
 use uuid::Uuid;
@@ -26,7 +27,7 @@ use crate::state::AuthState;
 )]
 pub async fn register(
     State(auth_state): State<AuthState>,
-    Json(payload): Json<RegisterRequest>,
+    ValidJson(payload): ValidJson<RegisterRequest>,
 ) -> Result<RegisterResponse, AppError> {
     register::register_user(&auth_state, payload).await
 }
@@ -65,7 +66,7 @@ pub async fn check_status(
 )]
 pub async fn resend_verification(
     State(auth_state): State<AuthState>,
-    Json(payload): Json<ResendVerificationRequest>,
+    ValidJson(payload): ValidJson<ResendVerificationRequest>,
 ) -> Result<ResendVerificationResponse, AppError> {
     register::resend_verification(&auth_state, payload).await
 }
@@ -85,7 +86,7 @@ pub async fn resend_verification(
 )]
 pub async fn login(
     State(auth_state): State<AuthState>,
-    Json(payload): Json<LoginRequest>,
+    ValidJson(payload): ValidJson<LoginRequest>,
 ) -> Result<LoginResponse, AppError> {
     login::authenticate_user(&auth_state, payload).await
 }
@@ -145,7 +146,7 @@ pub async fn refresh(
 )]
 pub async fn forgot_password(
     State(auth_state): State<AuthState>,
-    Json(payload): Json<ForgotPasswordRequest>,
+    ValidJson(payload): ValidJson<ForgotPasswordRequest>,
 ) -> Result<ForgotPasswordResponse, AppError> {
     password::send_forgot_password_email(&auth_state, payload).await
 }
@@ -166,7 +167,7 @@ pub async fn forgot_password(
 )]
 pub async fn reset_password(
     State(auth_state): State<AuthState>,
-    Json(payload): Json<ResetPasswordRequest>,
+    ValidJson(payload): ValidJson<ResetPasswordRequest>,
 ) -> Result<ResetPasswordResponse, AppError> {
     password::reset_password(&auth_state, payload).await
 }

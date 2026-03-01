@@ -421,7 +421,7 @@ async fn reset_password_multiple_tokens_only_first_used_works() {
     let (status1, _): (u16, ResetPasswordResponse) = post_json(
         &app,
         "/auth/reset-password",
-        json!({ "token": token1, "new_password": "new1" }),
+        json!({ "token": token1, "new_password": "new12345678" }),
     )
     .await;
     assert_eq!(status1, 200);
@@ -430,7 +430,7 @@ async fn reset_password_multiple_tokens_only_first_used_works() {
     let (status2, _): (u16, ResetPasswordResponse) = post_json(
         &app,
         "/auth/reset-password",
-        json!({ "token": token2, "new_password": "new2" }),
+        json!({ "token": token2, "new_password": "new12345678" }),
     )
     .await;
     assert_eq!(status2, 200);

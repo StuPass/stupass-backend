@@ -304,7 +304,10 @@ async fn register_user_has_default_reputation_score() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(user.reputation_score, 10, "New users should start with reputation 10");
+    assert_eq!(
+        user.reputation_score, 10,
+        "New users should start with reputation 10"
+    );
 }
 
 #[tokio::test]
@@ -371,4 +374,52 @@ async fn register_credential_uses_email_as_identifier() {
         cred.identifier, "test@example.com",
         "Credential identifier should be the email address"
     );
+}
+
+#[tokio::test]
+async fn test_register_invalid_email_fails() {
+    let ctx = TestContext::new().await;
+    let app = Router::new()
+        .route("/auth/register", post(auth::register))
+        .with_state(ctx.state.clone());
+
+    let (status, _body): (u16, serde_json::Value) = post_json(
+        &app,
+        "/auth/register",
+        json!({
+            "username": "testuser",
+            "email": "not-an-email",
+            "password": "SecurePass123!",
+            "full_name": "Test User",
+            "student_id": "STU001",
+            "school_id": "SCHOOL001"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, 400, "Validation should fail with 400 Bad Request");
+}
+
+#[tokio::test]
+async fn test_register_short_password_fails() {
+    let ctx = TestContext::new().await;
+    let app = Router::new()
+        .route("/auth/register", post(auth::register))
+        .with_state(ctx.state.clone());
+
+    let (status, _body): (u16, serde_json::Value) = post_json(
+        &app,
+        "/auth/register",
+        json!({
+            "username": "testuser",
+            "email": "test@example.com",
+            "password": "short",
+            "full_name": "Test User",
+            "student_id": "STU001",
+            "school_id": "SCHOOL001"
+        }),
+    )
+    .await;
+
+    assert_eq!(status, 400, "Validation should fail with 400 Bad Request");
 }

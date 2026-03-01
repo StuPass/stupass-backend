@@ -4,6 +4,7 @@ use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, IntoResponses, ToSchema};
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct MessageResponse<T> {
@@ -32,24 +33,33 @@ pub struct EmailVerifyClaims {
 // Request DTOs
 // ============================================================================
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct RegisterRequest {
+    #[validate(length(min = 3, message = "Username must be at least 3 characters long"))]
     pub username: String,
+    #[validate(email(message = "Invalid email format"))]
     pub email: String,
+    #[validate(length(min = 8, message = "Password must be at least 8 characters long"))]
     pub password: String,
+    #[validate(length(min = 1, message = "Full name cannot be empty"))]
     pub full_name: String,
+    #[validate(length(min = 1, message = "Student ID cannot be empty"))]
     pub student_id: String,
+    #[validate(length(min = 1, message = "School ID cannot be empty"))]
     pub school_id: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct ResendVerificationRequest {
+    #[validate(email)]
     pub email: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct LoginRequest {
+    #[validate(length(min = 1, message = "Identifier cannot be empty"))]
     pub identifier: String,
+    #[validate(length(min = 1, message = "Password cannot be empty"))]
     pub password: String,
 }
 
@@ -64,15 +74,18 @@ pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct ForgotPasswordRequest {
+    #[validate(email)]
     pub email: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct ResetPasswordRequest {
     /// Reset token from email link (extracted by frontend from URL)
+    #[validate(length(min = 1, message = "Token cannot be empty"))]
     pub token: String,
+    #[validate(length(min = 8, message = "Password must be at least 8 characters long"))]
     pub new_password: String,
 }
 

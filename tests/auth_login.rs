@@ -147,7 +147,7 @@ async fn login_returns_valid_jwt_access_token() {
 }
 
 #[tokio::test]
-async fn login_empty_password_returns_unauthorized() {
+async fn login_empty_password_returns_bad_request() {
     let ctx = TestContext::new().await;
     create_test_user(&ctx.db, "testuser", "test@example.com", "password").await;
 
@@ -155,7 +155,7 @@ async fn login_empty_password_returns_unauthorized() {
         .route("/auth/login", post(auth::login))
         .with_state(ctx.state);
 
-    let (status, _body): (u16, ErrorResponse) = post_json(
+    let (status, _body): (u16, serde_json::Value) = post_json(
         &app,
         "/auth/login",
         json!({
@@ -165,7 +165,7 @@ async fn login_empty_password_returns_unauthorized() {
     )
     .await;
 
-    assert_eq!(status, 401);
+    assert_eq!(status, 400); // Now handled by validation
 }
 
 #[tokio::test]
